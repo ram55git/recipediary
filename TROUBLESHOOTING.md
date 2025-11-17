@@ -4,22 +4,30 @@
 
 ### ❌ Error: "No module named 'pyaudioop'" / "No module named 'audioop'"
 
-**Cause:** `pydub` requires `ffmpeg` system library for audio processing. These modules are compiled C extensions that need system-level dependencies.
+**Cause:** Python 3.13 **removed** the `audioop` module (deprecated since Python 3.11). Railway was using Python 3.13.9, but `pydub` requires `audioop` which no longer exists in Python 3.13+.
 
 **Solution:**
-1. ✅ Created `nixpacks.toml` file in project root
-2. ✅ Contains: `nixPkgs = ['ffmpeg']` to install ffmpeg
-3. ✅ Railway will automatically detect and use this file
+1. ✅ Created `runtime.txt` with `python-3.12.7` to force Python 3.12
+2. ✅ Updated `nixpacks.toml` to use `python312` and install `ffmpeg`
+3. ✅ Removed `ffmpeg` and `ffmpeg-python` from requirements.txt (system package, not Python package)
 4. Commit and push:
    ```bash
-   git add nixpacks.toml
-   git commit -m "Add ffmpeg dependency for audio processing"
+   git add runtime.txt nixpacks.toml requirements.txt
+   git commit -m "Fix Python 3.13 audioop issue - use Python 3.12"
    git push
    ```
-5. Railway will rebuild with ffmpeg installed
+5. Railway will rebuild with Python 3.12 and ffmpeg installed
+
+**Technical Details:**
+- `audioop` was a built-in C extension module in Python <= 3.12
+- Python 3.13 removed it entirely (PEP 594)
+- `pydub` hasn't been updated to work without it yet
+- Solution: Use Python 3.12 until pydub releases a fix
 
 **Verify:**
-- Check Railway deployment logs for "Installing ffmpeg"
+- Check Railway deployment logs for "Python 3.12.7"
+- Should see "Installing ffmpeg"
+- No more "ModuleNotFoundError: No module named 'audioop'"
 - Test audio upload/recording features
 
 ---

@@ -52,7 +52,7 @@ $bytes = [System.IO.File]::ReadAllBytes("path\to\credentials.json")
 ```bash
 cd "c:\Users\srira\Documents\ProjectDragon\python programs\recipediary"
 git add .
-git commit -m "Ready for Railway deployment with audio support"
+git commit -m "Fix Python 3.13 issue - use Python 3.12 for audioop compatibility"
 git push
 ```
 

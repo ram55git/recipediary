@@ -7,7 +7,9 @@ import json
 from pathlib import Path
 import tempfile
 from dotenv import load_dotenv
-from pydub import AudioSegment
+import soundfile as sf
+import numpy as np
+from scipy import signal as scipy_signal
 import io
 from supabase import create_client, Client
 from datetime import datetime
@@ -218,16 +220,26 @@ def transcribe_audio(audio_path, language_code='en-US'):
         
         # Try with audio conversion first (best quality)
         try:
-            # Load audio file with pydub
-            audio_segment = AudioSegment.from_file(audio_path)
+            # Load audio file with soundfile (supports many formats via libsndfile)
+            audio_data, sample_rate = sf.read(audio_path, always_2d=True)
             
-            # Convert to mono, 16kHz sample rate (optimal for speech recognition)
-            audio_segment = audio_segment.set_channels(1)
-            audio_segment = audio_segment.set_frame_rate(16000)
+            # Convert to mono if stereo (average channels)
+            if audio_data.shape[1] > 1:
+                audio_data = np.mean(audio_data, axis=1)
+            else:
+                audio_data = audio_data[:, 0]
             
-            # Export as WAV in memory
+            # Resample to 16kHz if needed (optimal for speech recognition)
+            target_rate = 16000
+            if sample_rate != target_rate:
+                # Calculate resampling ratio
+                num_samples = int(len(audio_data) * target_rate / sample_rate)
+                audio_data = scipy_signal.resample(audio_data, num_samples)
+                sample_rate = target_rate
+            
+            # Convert to 16-bit PCM and export as WAV in memory
             wav_io = io.BytesIO()
-            audio_segment.export(wav_io, format='wav')
+            sf.write(wav_io, audio_data, sample_rate, subtype='PCM_16', format='WAV')
             wav_io.seek(0)
             content = wav_io.read()
             
