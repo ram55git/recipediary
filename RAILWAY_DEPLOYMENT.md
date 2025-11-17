@@ -12,6 +12,8 @@ Before deploying, ensure you have:
 - ✅ Supabase project setup and running
 - ✅ Google Cloud credentials
 - ✅ Gemini API key
+- ✅ `nixpacks.toml` file (installs ffmpeg for audio processing)
+- ✅ Email confirmation disabled in Supabase (see EMAIL_CONFIRMATION_FIX.md)
 
 ---
 
