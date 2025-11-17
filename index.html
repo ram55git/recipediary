@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Diary - Audio Recipe Recorder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Lato:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Configuration loaded from server (contains environment variables) -->
+    <script src="/config.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <div class="header-left">
+                    <h1>🍳 Recipe Diary</h1>
+                    <p class="subtitle">Record or upload your recipe audio</p>
+                </div>
+                <div class="header-right">
+                    <!-- Auth Status Display -->
+                    <div id="authStatus" class="auth-status">
+                        <div id="authLoading" class="auth-loading" style="display: none;">
+                            Loading...
+                        </div>
+                        <div id="authUser" class="auth-user" style="display: none;">
+                            <span class="user-email" id="userEmail"></span>
+                            <button class="btn-logout" id="logoutBtn">Logout</button>
+                        </div>
+                        <div id="authGuest" class="auth-guest">
+                            <button class="btn-login" id="loginBtn">Login</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <nav class="main-nav">
+                <button class="nav-btn active" id="navRecord">
+                    <span class="icon">🎙️</span> Record
+                </button>
+                <button class="nav-btn" id="navGallery">
+                    <span class="icon">📚</span> My Recipes
+                </button>
+            </nav>
+        </header>
+
+        <!-- RECORD VIEW -->
+        <main id="recordView">
+            <!-- Language Selection -->
+            <div class="card">
+                <h2>🌍 Select Language</h2>
+                <div class="language-selector">
+                    <label for="languageSelect">Choose the language you'll speak in:</label>
+                    <select id="languageSelect" class="language-select">
+                        <option value="en-US">English (US)</option>
+                        <option value="en-GB">English (UK)</option>
+                        <option value="es-ES">Spanish (Spain)</option>
+                        <option value="es-MX">Spanish (Mexico)</option>
+                        <option value="hi-IN">Hindi (India)</option>
+                        <option value="ta-IN">Tamil (India)</option>
+                        <option value="te-IN">Telugu (India)</option>
+                        <option value="ml-IN">Malayalam (India)</option>
+                        <option value="kn-IN">Kannada (India)</option>
+                        <option value="bn-IN">Bengali (India)</option>
+                        <option value="mr-IN">Marathi (India)</option>
+                        <option value="gu-IN">Gujarati (India)</option>
+                        <option value="fr-FR">French (France)</option>
+                        <option value="de-DE">German (Germany)</option>
+                        <option value="it-IT">Italian (Italy)</option>
+                        <option value="pt-BR">Portuguese (Brazil)</option>
+                        <option value="zh-CN">Chinese (Mandarin, Simplified)</option>
+                        <option value="ja-JP">Japanese (Japan)</option>
+                        <option value="ko-KR">Korean (Korea)</option>
+                        <option value="ar-SA">Arabic (Saudi Arabia)</option>
+                        <option value="ru-RU">Russian (Russia)</option>
+                        <option value="th-TH">Thai (Thailand)</option>
+                        <option value="vi-VN">Vietnamese (Vietnam)</option>
+                        <option value="id-ID">Indonesian (Indonesia)</option>
+                        <option value="ms-MY">Malay (Malaysia)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Login Prompt Banner -->
+            <div class="card auth-prompt" id="authPrompt" style="display: none;">
+                <div style="text-align: center; padding: 10px;">
+                    <span class="icon" style="font-size: 2rem;">🔐</span>
+                    <h3 style="margin: 10px 0;">Login Required</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 15px;">
+                        Please login to record and save recipes
+                    </p>
+                    <button class="btn btn-primary" onclick="document.getElementById('loginBtn').click()">
+                        <span class="icon">🔑</span> Login / Sign Up
+                    </button>
+                </div>
+            </div>
+
+            <!-- Recording Section -->
+            <div class="card">
+                <h2>Record Audio</h2>
+                <div class="recording-status">
+                    <div class="timer" id="timer">00:00</div>
+                    <div class="status-indicator" id="statusIndicator">Ready</div>
+                </div>
+                
+                <div class="controls">
+                    <button class="btn btn-primary" id="startBtn">
+                        <span class="icon">⏺</span> Start
+                    </button>
+                    <button class="btn btn-warning" id="pauseBtn" disabled>
+                        <span class="icon">⏸</span> Pause
+                    </button>
+                    <button class="btn btn-success" id="resumeBtn" disabled>
+                        <span class="icon">▶</span> Resume
+                    </button>
+                    <button class="btn btn-danger" id="stopBtn" disabled>
+                        <span class="icon">⏹</span> Stop
+                    </button>
+                </div>
+
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p class="max-duration">Maximum duration: 5 minutes</p>
+            </div>
+
+            <!-- Upload Section -->
+            <div class="card">
+                <h2>Or Upload Audio File</h2>
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="fileInput" accept="audio/*" hidden>
+                    <label for="fileInput" class="upload-label">
+                        <span class="icon large">📁</span>
+                        <p>Click to browse or drag & drop</p>
+                        <p class="file-info">Supported formats: MP3, WAV, OGG, M4A</p>
+                    </label>
+                </div>
+                <div id="uploadedFileName" class="uploaded-file"></div>
+            </div>
+
+            <!-- Audio Preview -->
+            <div class="card" id="audioPreviewCard" style="display: none;">
+                <h2>Audio Preview</h2>
+                <audio id="audioPreview" controls></audio>
+                <button class="btn btn-primary btn-large" id="transcribeBtn">
+                    <span class="icon">🎙️</span> Transcribe & Generate Recipe
+                </button>
+            </div>
+
+            <!-- Loading Section -->
+            <div class="card loading-card" id="loadingCard" style="display: none;">
+                <div class="spinner"></div>
+                <p id="loadingMessage">Processing your audio...</p>
+            </div>
+
+            <!-- Recipe Card Display -->
+            <div class="card recipe-card" id="recipeCard" style="display: none;">
+                <h2>📖 Your Recipe</h2>
+                <div id="recipeContent"></div>
+                <div class="recipe-actions">
+                    <button class="btn btn-primary" id="saveImageBtn">
+                        <span class="icon">💾</span> Save as Image
+                    </button>
+                    <button class="btn btn-secondary" id="newRecipeBtn">
+                        <span class="icon">➕</span> Record Another Recipe
+                    </button>
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            <div class="card error-card" id="errorCard" style="display: none;">
+                <h2>⚠️ Error</h2>
+                <p id="errorMessage"></p>
+                <button class="btn btn-secondary" id="retryBtn">Try Again</button>
+            </div>
+        </main>
+
+        <!-- GALLERY VIEW -->
+        <div id="galleryView" style="display: none;">
+            <!-- Search and Filter Bar -->
+            <div class="card search-card">
+                <div class="search-bar">
+                    <input type="text" id="searchInput" placeholder="🔍 Search recipes by name, author, or description..." class="search-input">
+                    <button class="btn btn-primary" id="searchBtn">Search</button>
+                    <button class="btn btn-secondary" id="clearSearchBtn">Clear</button>
+                </div>
+                <div class="recipe-count">
+                    <span id="recipeCount">0 recipes</span>
+                </div>
+            </div>
+
+            <!-- Recipe Gallery Grid -->
+            <div class="gallery-grid" id="galleryGrid">
+                <!-- Recipe cards will be dynamically inserted here -->
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state card" id="emptyState" style="display: none;">
+                <div class="icon large">📝</div>
+                <h2>No Recipes Yet</h2>
+                <p>Start by recording or uploading your first recipe!</p>
+                <button class="btn btn-primary" id="goToRecordBtn">
+                    <span class="icon">🎙️</span> Record Recipe
+                </button>
+            </div>
+
+            <!-- Loading State for Gallery -->
+            <div class="card loading-card" id="galleryLoadingCard" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading recipes...</p>
+            </div>
+        </div>
+
+        <!-- Recipe Detail Modal -->
+        <div id="recipeModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="modal-close" id="modalClose">&times;</span>
+                <div class="modal-header">
+                    <h2 id="modalTitle">Recipe Details</h2>
+                    <div class="modal-actions">
+                        <button class="btn btn-small btn-secondary" id="modalEditBtn">
+                            <span class="icon">✏️</span> Edit
+                        </button>
+                        <button class="btn btn-small btn-success" id="modalSaveBtn" style="display: none;">
+                            <span class="icon">💾</span> Save Changes
+                        </button>
+                        <button class="btn btn-small btn-secondary" id="modalCancelBtn" style="display: none;">
+                            <span class="icon">✖️</span> Cancel
+                        </button>
+                        <button class="btn btn-small btn-danger" id="modalDeleteBtn">
+                            <span class="icon">🗑️</span> Delete
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div id="modalRecipeContent"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" id="modalSaveImageBtn">
+                        <span class="icon">💾</span> Save as Image
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Authentication Modal -->
+        <div id="authModal" class="modal" style="display: none;">
+            <div class="modal-content modal-auth">
+                <span class="modal-close" id="authModalClose">&times;</span>
+                <div class="modal-header">
+                    <h2 id="authModalTitle">Welcome to Recipe Diary</h2>
+                </div>
+                <div class="modal-body">
+                    <div class="auth-tabs">
+                        <button class="auth-tab active" id="tabLogin">Login</button>
+                        <button class="auth-tab" id="tabSignup">Sign Up</button>
+                    </div>
+
+                    <!-- Login Form -->
+                    <form id="loginForm" class="auth-form">
+                        <div class="form-group">
+                            <label for="loginEmail">Email</label>
+                            <input type="email" id="loginEmail" required placeholder="your@email.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="loginPassword">Password</label>
+                            <input type="password" id="loginPassword" required placeholder="••••••••">
+                        </div>
+                        <div id="loginError" class="auth-error" style="display: none;"></div>
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <span class="icon">🔑</span> Login
+                        </button>
+                    </form>
+
+                    <!-- Signup Form -->
+                    <form id="signupForm" class="auth-form" style="display: none;">
+                        <div class="form-group">
+                            <label for="signupEmail">Email</label>
+                            <input type="email" id="signupEmail" required placeholder="your@email.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="signupPassword">Password</label>
+                            <input type="password" id="signupPassword" required placeholder="••••••••" minlength="6">
+                            <small>Minimum 6 characters</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="signupPasswordConfirm">Confirm Password</label>
+                            <input type="password" id="signupPasswordConfirm" required placeholder="••••••••">
+                        </div>
+                        <div id="signupError" class="auth-error" style="display: none;"></div>
+                        <div id="signupSuccess" class="auth-success" style="display: none;">
+                            Account created! Please check your email to verify your account.
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <span class="icon">✨</span> Create Account
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Powered by Google Speech-to-Text & Gemini AI</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
