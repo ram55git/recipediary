@@ -20,23 +20,33 @@ import base64
 # Load environment variables from .env file
 load_dotenv()
 
-# Handle Google Cloud credentials for Railway deployment
+# Handle Google Cloud credentials - prioritize base64 for consistency
 if os.getenv('GOOGLE_CREDENTIALS_BASE64'):
-    # Decode base64 credentials for Railway
-    creds_json = base64.b64decode(os.getenv('GOOGLE_CREDENTIALS_BASE64')).decode('utf-8')
-    creds_path = '/tmp/google-credentials.json'
-    with open(creds_path, 'w') as f:
-        f.write(creds_json)
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = creds_path
-    print("✓ Google credentials loaded from GOOGLE_CREDENTIALS_BASE64")
+    # Decode base64 credentials (works for both Railway and local)
+    try:
+        creds_json = base64.b64decode(os.getenv('GOOGLE_CREDENTIALS_BASE64')).decode('utf-8')
+        creds_path = tempfile.gettempdir() + '/google-credentials.json'
+        with open(creds_path, 'w') as f:
+            f.write(creds_json)
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = creds_path
+        print(f"✓ Google credentials loaded from GOOGLE_CREDENTIALS_BASE64 to {creds_path}")
+    except Exception as e:
+        print(f"✗ Failed to decode GOOGLE_CREDENTIALS_BASE64: {str(e)}")
+        # Fall back to file path if available
+        if os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
+            print(f"✓ Using GOOGLE_APPLICATION_CREDENTIALS file path: {os.getenv('GOOGLE_APPLICATION_CREDENTIALS')}")
 elif os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON'):
-    # Use JSON string directly for Railway
+    # Use JSON string directly
     creds_json = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON')
-    creds_path = '/tmp/google-credentials.json'
+    creds_path = tempfile.gettempdir() + '/google-credentials.json'
     with open(creds_path, 'w') as f:
         f.write(creds_json)
     os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = creds_path
-    print("✓ Google credentials loaded from GOOGLE_APPLICATION_CREDENTIALS_JSON")
+    print(f"✓ Google credentials loaded from GOOGLE_APPLICATION_CREDENTIALS_JSON to {creds_path}")
+elif os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
+    print(f"✓ Using GOOGLE_APPLICATION_CREDENTIALS file path: {os.getenv('GOOGLE_APPLICATION_CREDENTIALS')}")
+else:
+    print("⚠ WARNING: No Google Cloud credentials configured!")
 
 app = Flask(__name__, static_folder='.')
 CORS(app)
