@@ -228,10 +228,60 @@ def transcribe_audio(audio_path, language_code='en-US'):
 
         print(f"Processing audio file: {audio_path}")
         
-        # Try with audio conversion first (best quality)
+        # Check file size
+        file_size = os.path.getsize(audio_path)
+        print(f"Audio file size: {file_size} bytes")
+        
+        if file_size == 0:
+            print("Error: Audio file is empty")
+            return None
+        
+        # For WebM files, convert using ffmpeg (more reliable than soundfile)
+        file_ext = Path(audio_path).suffix.lower()
+        
+        if file_ext in ['.webm', '.opus']:
+            print("Converting WebM to WAV using ffmpeg...")
+            try:
+                import subprocess
+                
+                # Convert to WAV using ffmpeg
+                wav_path = str(audio_path).replace(file_ext, '_converted.wav')
+                
+                # ffmpeg command: convert to mono, 16kHz, 16-bit PCM WAV
+                cmd = [
+                    'ffmpeg', '-y', '-i', str(audio_path),
+                    '-acodec', 'pcm_s16le',
+                    '-ar', '16000',
+                    '-ac', '1',
+                    wav_path
+                ]
+                
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    print(f"ffmpeg conversion failed: {result.stderr}")
+                    raise Exception("ffmpeg conversion failed")
+                
+                print(f"✓ Converted to WAV: {wav_path}")
+                audio_path = Path(wav_path)
+                file_ext = '.wav'
+                
+            except FileNotFoundError:
+                print("⚠ ffmpeg not found, trying soundfile conversion...")
+            except Exception as ffmpeg_error:
+                print(f"⚠ ffmpeg error: {ffmpeg_error}, trying soundfile...")
+        
+        # Try with audio conversion (for non-WebM or if ffmpeg failed)
         try:
-            # Load audio file with soundfile (supports many formats via libsndfile)
+            # Load audio file with soundfile
             audio_data, sample_rate = sf.read(audio_path, always_2d=True)
+            
+            print(f"Loaded audio: {audio_data.shape} at {sample_rate}Hz")
+            
+            # Check if audio has data
+            if len(audio_data) == 0:
+                print("Error: Audio data is empty")
+                return None
             
             # Convert to mono if stereo (average channels)
             if audio_data.shape[1] > 1:
@@ -246,12 +296,15 @@ def transcribe_audio(audio_path, language_code='en-US'):
                 num_samples = int(len(audio_data) * target_rate / sample_rate)
                 audio_data = scipy_signal.resample(audio_data, num_samples)
                 sample_rate = target_rate
+                print(f"Resampled to {sample_rate}Hz, {len(audio_data)} samples")
             
             # Convert to 16-bit PCM and export as WAV in memory
             wav_io = io.BytesIO()
             sf.write(wav_io, audio_data, sample_rate, subtype='PCM_16', format='WAV')
             wav_io.seek(0)
             content = wav_io.read()
+            
+            print(f"Generated WAV: {len(content)} bytes")
             
             config = speech.RecognitionConfig(
                 encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
@@ -265,15 +318,15 @@ def transcribe_audio(audio_path, language_code='en-US'):
             print("Using converted audio format (LINEAR16)")
             
         except Exception as conv_error:
-            print(f"Audio conversion failed, trying direct upload: {conv_error}")
+            print(f"Audio conversion failed: {conv_error}")
             
             # Fallback: Read raw audio file
             with open(audio_path, 'rb') as audio_file:
                 content = audio_file.read()
             
-            # Try to auto-detect encoding based on file extension
-            file_ext = Path(audio_path).suffix.lower()
+            print(f"Using raw audio: {len(content)} bytes")
             
+            # Try to auto-detect encoding based on file extension
             if file_ext in ['.webm', '.opus']:
                 encoding = speech.RecognitionConfig.AudioEncoding.WEBM_OPUS
                 sample_rate = 48000
@@ -295,7 +348,7 @@ def transcribe_audio(audio_path, language_code='en-US'):
                 model='default',
             )
             
-            print(f"Using direct audio format: {encoding}")
+            print(f"Using direct audio format: {encoding} at {sample_rate}Hz")
 
         audio = speech.RecognitionAudio(content=content)
 
@@ -375,8 +428,29 @@ Important guidelines:
 Return ONLY the JSON object, no additional text.
 """
 
-        # Generate content using Gemini
-        response = model.generate_content(prompt)
+        # Generate content using Gemini with timeout (no auto-retry to avoid excessive API calls)
+        print("Calling Gemini API...")
+        
+        # Configure generation with timeout
+        generation_config = {
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 2048,
+        }
+        
+        try:
+            response = model.generate_content(
+                prompt,
+                generation_config=generation_config,
+                request_options={"timeout": 60}  # 60 second timeout
+            )
+        except Exception as api_error:
+            error_msg = str(api_error)
+            if "timeout" in error_msg.lower() or "504" in error_msg:
+                raise Exception("Gemini API is taking too long. This recipe might be too complex. Please try with a shorter recipe or simplify your description.")
+            else:
+                raise
         
         # Extract the text response
         response_text = response.text.strip()
