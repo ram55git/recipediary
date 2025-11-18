@@ -568,16 +568,40 @@ async function startRecording() {
         mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
                 audioChunks.push(event.data);
+                console.log('Audio chunk received:', event.data.size, 'bytes');
             }
         };
 
         mediaRecorder.onstop = () => {
+            console.log('Recording stopped. Total chunks:', audioChunks.length);
             stream.getTracks().forEach(track => track.stop());
+            
+            if (audioChunks.length === 0) {
+                console.error('No audio data recorded');
+                showError('No audio was recorded. Please try again.');
+                return;
+            }
+            
             audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            console.log('Audio blob created:', audioBlob.size, 'bytes');
+            
+            if (audioBlob.size === 0) {
+                console.error('Audio blob is empty');
+                showError('Recording failed. Please try again.');
+                return;
+            }
+            
             displayAudioPreview(audioBlob);
         };
 
-        mediaRecorder.start();
+        mediaRecorder.onerror = (event) => {
+            console.error('MediaRecorder error:', event.error);
+            showError('Recording error: ' + event.error.name);
+        };
+
+        // Start recording with timeslice to ensure data is collected
+        mediaRecorder.start(1000); // Collect data every 1 second
+        console.log('MediaRecorder started');
         updateUIForRecording();
         startTimer();
     } catch (error) {
@@ -664,10 +688,28 @@ function updateUIForStopped() {
 }
 
 function displayAudioPreview(blob) {
-    const url = URL.createObjectURL(blob);
-    audioPreview.src = url;
-    audioPreviewCard.style.display = 'block';
-    hideOtherCards();
+    try {
+        console.log('Displaying audio preview, blob size:', blob.size);
+        const url = URL.createObjectURL(blob);
+        audioPreview.src = url;
+        
+        // Add error handler for audio element
+        audioPreview.onerror = (e) => {
+            console.error('Audio preview error:', e);
+            showError('Could not play audio preview. The recording may be corrupted.');
+        };
+        
+        // Add success handler
+        audioPreview.onloadedmetadata = () => {
+            console.log('Audio loaded successfully, duration:', audioPreview.duration);
+        };
+        
+        audioPreviewCard.style.display = 'block';
+        hideOtherCards();
+    } catch (error) {
+        console.error('Error creating audio preview:', error);
+        showError('Failed to create audio preview: ' + error.message);
+    }
 }
 
 // File Upload Functions
