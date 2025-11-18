@@ -18,7 +18,7 @@
         <header>
             <div class="header-top">
                 <div class="header-left">
-                    <h1>🍳 Recipe Diary</h1>
+                    <h1><img src="images/recipediary_icon.png" alt="Recipe Diary" class="logo-icon" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';"><span style="display:none;">🍳</span> Recipe Diary</h1>
                     <p class="subtitle">Record or upload your recipe audio</p>
                 </div>
                 <div class="header-right">
@@ -29,6 +29,7 @@
                         </div>
                         <div id="authUser" class="auth-user" style="display: none;">
                             <span class="user-email" id="userEmail"></span>
+                            <button class="btn-settings" id="settingsBtn" title="Settings">⚙️</button>
                             <button class="btn-logout" id="logoutBtn">Logout</button>
                         </div>
                         <div id="authGuest" class="auth-guest">
@@ -256,6 +257,7 @@
                 <div class="modal-body">
                     <div class="auth-tabs">
                         <button class="auth-tab active" id="tabLogin">Login</button>
+                        <button class="auth-tab" id="tabMagicLink">Magic Link</button>
                         <button class="auth-tab" id="tabSignup">Sign Up</button>
                     </div>
 
@@ -273,6 +275,40 @@
                         <button type="submit" class="btn btn-primary btn-block">
                             <span class="icon">🔑</span> Login
                         </button>
+                        <div style="text-align: center; margin-top: 15px;">
+                            <a href="#" id="forgotPasswordLink" style="color: #4CAF50; text-decoration: none; font-size: 0.9rem;">Forgot password?</a>
+                        </div>
+                    </form>
+
+                    <!-- Magic Link Form -->
+                    <form id="magicLinkForm" class="auth-form" style="display: none;">
+                        <p style="color: #666; font-size: 0.9rem; margin-bottom: 20px;">Enter your email to receive a one-time login link. No password required!</p>
+                        <div class="form-group">
+                            <label for="magicLinkEmail">Email</label>
+                            <input type="email" id="magicLinkEmail" required placeholder="your@email.com">
+                        </div>
+                        <div id="magicLinkError" class="auth-error" style="display: none;"></div>
+                        <div id="magicLinkSuccess" class="auth-success" style="display: none;"></div>
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <span class="icon">✉️</span> Send Magic Link
+                        </button>
+                    </form>
+
+                    <!-- Password Reset Form -->
+                    <form id="resetPasswordForm" class="auth-form" style="display: none;">
+                        <p style="color: #666; font-size: 0.9rem; margin-bottom: 20px;">Enter your email to receive a password reset link.</p>
+                        <div class="form-group">
+                            <label for="resetEmail">Email</label>
+                            <input type="email" id="resetEmail" required placeholder="your@email.com">
+                        </div>
+                        <div id="resetError" class="auth-error" style="display: none;"></div>
+                        <div id="resetSuccess" class="auth-success" style="display: none;"></div>
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <span class="icon">🔄</span> Send Reset Link
+                        </button>
+                        <div style="text-align: center; margin-top: 15px;">
+                            <a href="#" id="backToLoginLink" style="color: #4CAF50; text-decoration: none; font-size: 0.9rem;">← Back to Login</a>
+                        </div>
                     </form>
 
                     <!-- Signup Form -->
@@ -302,6 +338,62 @@
             </div>
         </div>
 
+        <!-- Settings Modal -->
+        <div id="settingsModal" class="modal" style="display: none;">
+            <div class="modal-content settings-modal">
+                <span class="modal-close" id="settingsModalClose">&times;</span>
+                <div class="modal-header">
+                    <h2>⚙️ Settings</h2>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-section">
+                        <h3>Recipe Card Background</h3>
+                        <p>Choose a background for your recipe cards:</p>
+                        <div class="background-grid" id="backgroundGrid">
+                            <div class="background-option" data-bg="none">
+                                <div class="background-preview bg-none">
+                                    <span>None</span>
+                                </div>
+                                <p>Default</p>
+                            </div>
+                            <div class="background-option" data-bg="peach">
+                                <div class="background-preview bg-peach"></div>
+                                <p>Peach</p>
+                            </div>
+                            <div class="background-option" data-bg="mint">
+                                <div class="background-preview bg-mint"></div>
+                                <p>Mint</p>
+                            </div>
+                            <div class="background-option" data-bg="lavender">
+                                <div class="background-preview bg-lavender"></div>
+                                <p>Lavender</p>
+                            </div>
+                            <div class="background-option" data-bg="sky">
+                                <div class="background-preview bg-sky"></div>
+                                <p>Sky Blue</p>
+                            </div>
+                            <div class="background-option" data-bg="rose">
+                                <div class="background-preview bg-rose"></div>
+                                <p>Rose</p>
+                            </div>
+                            <div class="background-option" data-bg="lemon">
+                                <div class="background-preview bg-lemon"></div>
+                                <p>Lemon</p>
+                            </div>
+                            <div class="background-option" data-bg="coral">
+                                <div class="background-preview bg-coral"></div>
+                                <p>Coral</p>
+                            </div>
+                            <div class="background-option" data-bg="sage">
+                                <div class="background-preview bg-sage"></div>
+                                <p>Sage</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <footer>
             <p>Powered by Google Speech-to-Text & Gemini AI</p>
         </footer>
@@ -311,3 +403,4 @@
     <script src="app.js"></script>
 </body>
 </html>
+

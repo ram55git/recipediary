@@ -103,6 +103,9 @@ const authModal = document.getElementById('authModal');
 const authModalClose = document.getElementById('authModalClose');
 const loginBtn = document.getElementById('loginBtn');
 const logoutBtn = document.getElementById('logoutBtn');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsModal = document.getElementById('settingsModal');
+const settingsModalClose = document.getElementById('settingsModalClose');
 const tabLogin = document.getElementById('tabLogin');
 const tabSignup = document.getElementById('tabSignup');
 const loginForm = document.getElementById('loginForm');
@@ -111,15 +114,40 @@ const signupForm = document.getElementById('signupForm');
 // Auth Event Listeners
 loginBtn.addEventListener('click', openAuthModal);
 logoutBtn.addEventListener('click', handleLogout);
+settingsBtn.addEventListener('click', openSettingsModal);
 authModalClose.addEventListener('click', closeAuthModal);
+settingsModalClose.addEventListener('click', closeSettingsModal);
 tabLogin.addEventListener('click', () => switchAuthTab('login'));
 tabSignup.addEventListener('click', () => switchAuthTab('signup'));
+document.getElementById('tabMagicLink').addEventListener('click', () => switchAuthTab('magicLink'));
+document.getElementById('forgotPasswordLink').addEventListener('click', (e) => {
+    e.preventDefault();
+    switchAuthTab('reset');
+});
+document.getElementById('backToLoginLink').addEventListener('click', (e) => {
+    e.preventDefault();
+    switchAuthTab('login');
+});
 loginForm.addEventListener('submit', handleLogin);
 signupForm.addEventListener('submit', handleSignup);
+document.getElementById('magicLinkForm').addEventListener('submit', handleMagicLink);
+document.getElementById('resetPasswordForm').addEventListener('submit', handlePasswordReset);
+
+// Background Selection Event Listeners
+document.getElementById('backgroundGrid').addEventListener('click', handleBackgroundSelection);
 
 function openAuthModal() {
     authModal.style.display = 'block';
     switchAuthTab('login');
+}
+
+function openSettingsModal() {
+    settingsModal.style.display = 'block';
+    loadBackgroundPreference();
+}
+
+function closeSettingsModal() {
+    settingsModal.style.display = 'none';
 }
 
 function closeAuthModal() {
@@ -128,26 +156,51 @@ function closeAuthModal() {
 }
 
 function switchAuthTab(tab) {
+    const tabMagicLink = document.getElementById('tabMagicLink');
+    const magicLinkForm = document.getElementById('magicLinkForm');
+    const resetPasswordForm = document.getElementById('resetPasswordForm');
+    
+    // Reset all tabs
+    tabLogin.classList.remove('active');
+    tabSignup.classList.remove('active');
+    tabMagicLink.classList.remove('active');
+    
+    // Hide all forms
+    loginForm.style.display = 'none';
+    signupForm.style.display = 'none';
+    magicLinkForm.style.display = 'none';
+    resetPasswordForm.style.display = 'none';
+    
+    // Show selected form
     if (tab === 'login') {
         tabLogin.classList.add('active');
-        tabSignup.classList.remove('active');
         loginForm.style.display = 'block';
-        signupForm.style.display = 'none';
-    } else {
-        tabLogin.classList.remove('active');
+    } else if (tab === 'signup') {
         tabSignup.classList.add('active');
-        loginForm.style.display = 'none';
         signupForm.style.display = 'block';
+    } else if (tab === 'magicLink') {
+        tabMagicLink.classList.add('active');
+        magicLinkForm.style.display = 'block';
+    } else if (tab === 'reset') {
+        // Password reset doesn't have a tab, just show the form
+        resetPasswordForm.style.display = 'block';
     }
+    
     clearAuthForms();
 }
 
 function clearAuthForms() {
     loginForm.reset();
     signupForm.reset();
+    document.getElementById('magicLinkForm').reset();
+    document.getElementById('resetPasswordForm').reset();
     document.getElementById('loginError').style.display = 'none';
     document.getElementById('signupError').style.display = 'none';
     document.getElementById('signupSuccess').style.display = 'none';
+    document.getElementById('magicLinkError').style.display = 'none';
+    document.getElementById('magicLinkSuccess').style.display = 'none';
+    document.getElementById('resetError').style.display = 'none';
+    document.getElementById('resetSuccess').style.display = 'none';
 }
 
 async function handleLogin(e) {
@@ -218,6 +271,134 @@ async function handleLogout() {
         // Auth state change listener will handle UI updates
     } catch (error) {
         console.error('Logout error:', error);
+    }
+}
+
+// ============================================================================
+// SETTINGS & BACKGROUND CUSTOMIZATION
+// ============================================================================
+
+function handleBackgroundSelection(e) {
+    const option = e.target.closest('.background-option');
+    if (!option) return;
+
+    const selectedBg = option.dataset.bg;
+    
+    // Update UI selection
+    document.querySelectorAll('.background-option').forEach(opt => {
+        opt.classList.remove('selected');
+    });
+    option.classList.add('selected');
+    
+    // Save preference
+    localStorage.setItem('recipeBackground', selectedBg);
+    
+    // Apply to all recipe cards immediately
+    applyBackgroundToCards(selectedBg);
+}
+
+function loadBackgroundPreference() {
+    const savedBg = localStorage.getItem('recipeBackground') || 'none';
+    
+    // Highlight selected option in settings
+    document.querySelectorAll('.background-option').forEach(opt => {
+        if (opt.dataset.bg === savedBg) {
+            opt.classList.add('selected');
+        } else {
+            opt.classList.remove('selected');
+        }
+    });
+}
+
+function applyBackgroundToCards(backgroundClass) {
+    const allCards = document.querySelectorAll('.recipe-card, #recipeContent, #modalRecipeContent');
+    
+    // Remove all background classes
+    const bgClasses = ['bg-none', 'bg-peach', 'bg-mint', 'bg-lavender', 'bg-sky', 'bg-rose', 'bg-lemon', 'bg-coral', 'bg-sage'];
+    allCards.forEach(card => {
+        bgClasses.forEach(cls => card.classList.remove(cls));
+        
+        // Add selected background
+        if (backgroundClass !== 'none') {
+            card.classList.add(`bg-${backgroundClass}`);
+        }
+    });
+}
+
+// Apply saved background on page load
+document.addEventListener('DOMContentLoaded', () => {
+    const savedBg = localStorage.getItem('recipeBackground') || 'none';
+    applyBackgroundToCards(savedBg);
+});
+
+async function handleMagicLink(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('magicLinkEmail').value;
+    const errorDiv = document.getElementById('magicLinkError');
+    const successDiv = document.getElementById('magicLinkSuccess');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+
+    errorDiv.style.display = 'none';
+    successDiv.style.display = 'none';
+
+    try {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="icon">⏳</span> Sending...';
+
+        const { data, error } = await supabaseClient.auth.signInWithOtp({
+            email,
+            options: {
+                emailRedirectTo: window.location.origin
+            }
+        });
+
+        if (error) throw error;
+
+        // Show success message
+        successDiv.textContent = `Magic link sent to ${email}! Check your inbox and click the link to login.`;
+        successDiv.style.display = 'block';
+        document.getElementById('magicLinkForm').reset();
+    } catch (error) {
+        errorDiv.textContent = error.message;
+        errorDiv.style.display = 'block';
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span class="icon">✉️</span> Send Magic Link';
+    }
+}
+
+async function handlePasswordReset(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('resetEmail').value;
+    const errorDiv = document.getElementById('resetError');
+    const successDiv = document.getElementById('resetSuccess');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+
+    errorDiv.style.display = 'none';
+    successDiv.style.display = 'none';
+
+    try {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="icon">⏳</span> Sending...';
+
+        const { data, error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+            redirectTo: window.location.origin
+        });
+
+        if (error) throw error;
+
+        // Show success message
+        successDiv.textContent = `Password reset link sent to ${email}! Check your inbox.`;
+        successDiv.style.display = 'block';
+        document.getElementById('resetPasswordForm').reset();
+    } catch (error) {
+        errorDiv.textContent = error.message;
+        errorDiv.style.display = 'block';
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span class="icon">🔄</span> Send Reset Link';
     }
 }
 
@@ -581,33 +762,18 @@ function displayRecipe(data) {
         html += `<h1 class="recipe-title">${data.recipe_name}</h1>`;
     }
 
-    // Header with Author and Meta Info
-    html += `<div class="recipe-header">`;
-    
-    // Author (left side)
+    // Author (centered below title)
     if (data.author) {
         html += `<p class="recipe-author">by ${data.author}</p>`;
     }
-    
-    // Servings and Total Time (right side)
-    html += `<div class="recipe-header-meta">`;
-    if (data.yield) {
-        html += `<span class="header-meta-item">🍽️ ${data.yield}</span>`;
-    }
-    if (data.cook_time || data.prep_time) {
-        // Calculate or display total cooking time
-        const cookingTime = data.cook_time || data.prep_time;
-        html += `<span class="header-meta-item">⏱️ ${cookingTime}</span>`;
-    }
-    html += `</div></div>`;
 
     // Description
     if (data.description) {
         html += `<p class="recipe-description">${data.description}</p>`;
     }
 
-    // Recipe Meta Information (Prep Time, Cook Time)
-    const hasMeta = data.prep_time || data.cook_time;
+    // Recipe Meta Information (Prep Time, Cook Time, Yield in one row)
+    const hasMeta = data.prep_time || data.cook_time || data.yield;
     if (hasMeta) {
         html += `<div class="recipe-meta">`;
         
@@ -629,21 +795,27 @@ function displayRecipe(data) {
             `;
         }
         
+        if (data.yield) {
+            html += `
+                <div class="meta-item">
+                    <span class="meta-label">🍽️ Servings</span>
+                    <span class="meta-value">${data.yield}</span>
+                </div>
+            `;
+        }
+        
         html += `</div>`;
     }
 
-    // Two Column Layout for Ingredients and Instructions
-    html += `<div class="recipe-two-column">`;
-    
-    // Ingredients Section (Left Column)
+    // Ingredients Section (2 columns)
     if (data.ingredients && data.ingredients.length > 0) {
         html += `
-            <div class="recipe-section ingredients-column">
+            <div class="recipe-section">
                 <h2 class="recipe-section-title">
                     <span class="icon">🥘</span>
                     Ingredients
                 </h2>
-                <ul class="ingredients-list">
+                <ul class="ingredients-list ingredients-two-column">
         `;
         data.ingredients.forEach(ingredient => {
             html += `<li>${ingredient}</li>`;
@@ -651,25 +823,21 @@ function displayRecipe(data) {
         html += `</ul></div>`;
     }
 
-    // Instructions Section (Right Column)
+    // Instructions Section (2 columns)
     if (data.instructions && data.instructions.length > 0) {
         html += `
-            <div class="recipe-section instructions-column">
+            <div class="recipe-section">
                 <h2 class="recipe-section-title">
                     <span class="icon">👨‍🍳</span>
                     Instructions
                 </h2>
-                <ol class="instructions-list">
+                <ol class="instructions-list instructions-two-column">
         `;
         data.instructions.forEach(instruction => {
             html += `<li>${instruction}</li>`;
         });
         html += `</ol></div>`;
     }
-    
-    html += `</div>`; // Close two-column div
-
-    // Tips Section (Full Width)
     if (data.tips && data.tips.length > 0) {
         html += `
             <div class="recipe-section">
@@ -688,6 +856,10 @@ function displayRecipe(data) {
     recipeContent.innerHTML = html;
     recipeCard.style.display = 'block';
     hideOtherCards('recipe');
+    
+    // Apply saved background preference
+    const savedBg = localStorage.getItem('recipeBackground') || 'none';
+    applyBackgroundToCards(savedBg);
 }
 
 function showError(message) {
@@ -740,24 +912,47 @@ function resetApp() {
 }
 
 // Save Recipe as Image
-async function saveRecipeAsImage() {
+async function saveRecipeAsImage(contentElement = null) {
+    console.log('saveRecipeAsImage called');
+    
+    // Use provided element or default to recipeContent
+    const sourceContent = contentElement || recipeContent;
+    
     try {
-        // Show loading state
-        saveImageBtn.disabled = true;
-        saveImageBtn.innerHTML = '<span class="icon">⏳</span> Generating...';
+        // Check if recipe content exists
+        console.log('sourceContent:', sourceContent);
+        console.log('sourceContent innerHTML length:', sourceContent?.innerHTML?.length);
+        
+        if (!sourceContent || !sourceContent.innerHTML || !sourceContent.innerHTML.trim()) {
+            console.error('No recipe content found');
+            showError('No recipe to save. Please generate a recipe first.');
+            return;
+        }
 
-        // Clone the recipe content to create a standalone image
+        console.log('Starting image generation...');
+        
+        // Determine which button was clicked
+        const buttonElement = contentElement === modalRecipeContent ? modalSaveImageBtn : saveImageBtn;
+        
+        // Show loading state
+        buttonElement.disabled = true;
+        buttonElement.innerHTML = '<span class="icon">⏳</span> Generating...';
+
+        // Create a container for the image
         const recipeContainer = document.createElement('div');
         recipeContainer.style.cssText = `
             background: white;
             padding: 50px;
             width: 900px;
-            font-family: var(--font-body);
-            position: absolute;
-            left: -9999px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            position: fixed;
+            left: -10000px;
             top: 0;
             box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            border-radius: 10px;
         `;
+        
+        console.log('Created container');
         
         // Add a header with branding
         const header = document.createElement('div');
@@ -768,54 +963,100 @@ async function saveRecipeAsImage() {
             border-bottom: 3px solid #4CAF50;
         `;
         header.innerHTML = `
-            <h1 style="font-family: var(--font-heading); color: #4CAF50; font-size: 2rem; margin-bottom: 5px;">
-                🍳 Recipe Diary
-            </h1>
-            <p style="color: #666; font-size: 0.9rem; margin: 0;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                <img src="images/recipediary_icon.png" alt="Recipe Diary" style="width: 56px; height: 56px; object-fit: contain;" onerror="this.style.display='none';">
+                <h1 style="font-family: 'Georgia', serif; color: #4CAF50; font-size: 2.5rem; margin: 0; font-weight: 700;">
+                    Recipe Diary
+                </h1>
+            </div>
+            <p style="color: #666; font-size: 1rem; margin-top: 8px; font-weight: 500;">
                 Your personal recipe collection
             </p>
         `;
         recipeContainer.appendChild(header);
         
-        // Add the recipe content
+        // Clone and add the recipe content with proper styling
         const contentDiv = document.createElement('div');
-        contentDiv.innerHTML = recipeContent.innerHTML;
+        contentDiv.innerHTML = sourceContent.innerHTML;
+        
+        console.log('Cloned content');
+        
+        // Apply inline styles to ensure they render in the image
+        contentDiv.style.cssText = `
+            color: #333;
+            line-height: 1.6;
+        `;
+        
+        // Style all elements properly
+        const elements = contentDiv.querySelectorAll('*');
+        console.log(`Styling ${elements.length} elements`);
+        
+        elements.forEach(el => {
+            const computed = window.getComputedStyle(el);
+            el.style.color = computed.color;
+            el.style.fontSize = computed.fontSize;
+            el.style.fontWeight = computed.fontWeight;
+            el.style.margin = computed.margin;
+            el.style.padding = computed.padding;
+        });
+        
         recipeContainer.appendChild(contentDiv);
         
         // Add a footer
         const footer = document.createElement('div');
         footer.style.cssText = `
-            margin-top: 30px;
+            margin-top: 40px;
             padding-top: 20px;
             border-top: 2px solid #e0e0e0;
             text-align: center;
             color: #999;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
         `;
         footer.innerHTML = `Created with Recipe Diary • ${new Date().toLocaleDateString()}`;
         recipeContainer.appendChild(footer);
         
         document.body.appendChild(recipeContainer);
+        console.log('Appended container to body');
+
+        // Wait a bit for rendering
+        await new Promise(resolve => setTimeout(resolve, 100));
+        console.log('Calling html2canvas...');
+
+        // Check if html2canvas is available
+        if (typeof html2canvas === 'undefined') {
+            throw new Error('html2canvas library not loaded. Please refresh the page and try again.');
+        }
 
         // Use html2canvas to capture the recipe
         const canvas = await html2canvas(recipeContainer, {
             backgroundColor: '#ffffff',
-            scale: 2, // Higher quality
-            logging: false,
+            scale: 2,
+            logging: true,
             useCORS: true,
-            allowTaint: true
+            allowTaint: true,
+            width: recipeContainer.offsetWidth,
+            height: recipeContainer.offsetHeight
         });
+
+        console.log('Canvas created:', canvas.width, 'x', canvas.height);
 
         // Remove the temporary container
         document.body.removeChild(recipeContainer);
+        console.log('Removed container');
 
         // Convert canvas to blob and download
         canvas.toBlob((blob) => {
+            console.log('Blob created:', blob?.size, 'bytes');
+            
+            if (!blob) {
+                throw new Error('Failed to create image blob');
+            }
+
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             
             // Generate filename from recipe name or use default
-            const recipeTitleElement = recipeContent.querySelector('.recipe-title');
+            const recipeTitleElement = sourceContent.querySelector('.recipe-title');
             const recipeTitle = recipeTitleElement ? 
                 recipeTitleElement.textContent.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 
                 'recipe';
@@ -825,26 +1066,29 @@ async function saveRecipeAsImage() {
             link.href = url;
             link.click();
             
+            console.log('Download triggered:', link.download);
+            
             // Clean up
-            URL.revokeObjectURL(url);
+            setTimeout(() => URL.revokeObjectURL(url), 100);
 
             // Reset button
-            saveImageBtn.disabled = false;
-            saveImageBtn.innerHTML = '<span class="icon">💾</span> Save as Image';
+            buttonElement.disabled = false;
+            buttonElement.innerHTML = '<span class="icon">💾</span> Save as Image';
 
             // Show success message briefly
-            const originalText = saveImageBtn.innerHTML;
-            saveImageBtn.innerHTML = '<span class="icon">✅</span> Saved!';
+            const originalText = buttonElement.innerHTML;
+            buttonElement.innerHTML = '<span class="icon">✅</span> Saved!';
             setTimeout(() => {
-                saveImageBtn.innerHTML = originalText;
+                buttonElement.innerHTML = originalText;
             }, 2000);
         }, 'image/png');
 
     } catch (error) {
         console.error('Error saving recipe as image:', error);
-        saveImageBtn.disabled = false;
-        saveImageBtn.innerHTML = '<span class="icon">💾</span> Save as Image';
-        showError('Failed to save recipe as image. Please try again.');
+        const buttonElement = contentElement === modalRecipeContent ? modalSaveImageBtn : saveImageBtn;
+        buttonElement.disabled = false;
+        buttonElement.innerHTML = '<span class="icon">💾</span> Save as Image';
+        showError(`Failed to save recipe as image: ${error.message}`);
     }
 }
 
@@ -934,6 +1178,10 @@ function displayRecipeGallery(recipes) {
         const card = createRecipeGalleryCard(recipe);
         galleryGrid.appendChild(card);
     });
+    
+    // Apply saved background preference to gallery cards
+    const savedBg = localStorage.getItem('recipeBackground') || 'none';
+    applyBackgroundToCards(savedBg);
 }
 
 function createRecipeGalleryCard(recipe) {
@@ -1018,24 +1266,12 @@ function displayRecipeInModal(data, editable = false) {
         html += `<h1 class="recipe-title">${data.recipe_name || 'Untitled Recipe'}</h1>`;
     }
 
-    // Header with Author and Meta Info
-    html += `<div class="recipe-header">`;
-    
+    // Author (centered below title)
     if (editable) {
         html += `<p class="recipe-author">by <span contenteditable="true" data-field="author">${data.author || ''}</span></p>`;
     } else {
         html += `<p class="recipe-author">by ${data.author || 'Unknown'}</p>`;
     }
-    
-    html += `<div class="recipe-header-meta">`;
-    if (editable) {
-        html += `<span class="header-meta-item">🍽️ <span contenteditable="true" data-field="yield">${data.yield || ''}</span></span>`;
-        html += `<span class="header-meta-item">⏱️ <span contenteditable="true" data-field="cook_time">${data.cook_time || ''}</span></span>`;
-    } else {
-        if (data.yield) html += `<span class="header-meta-item">🍽️ ${data.yield}</span>`;
-        if (data.cook_time) html += `<span class="header-meta-item">⏱️ ${data.cook_time}</span>`;
-    }
-    html += `</div></div>`;
 
     // Description
     if (editable) {
@@ -1044,8 +1280,8 @@ function displayRecipeInModal(data, editable = false) {
         html += `<p class="recipe-description">${data.description}</p>`;
     }
 
-    // Recipe Meta (Prep/Cook Time)
-    const hasMeta = data.prep_time || data.cook_time;
+    // Recipe Meta (Prep/Cook Time/Yield in one row)
+    const hasMeta = data.prep_time || data.cook_time || data.yield;
     if (hasMeta) {
         html += `<div class="recipe-meta">`;
         if (data.prep_time) {
@@ -1060,17 +1296,20 @@ function displayRecipeInModal(data, editable = false) {
                 <span class="meta-value"${editable ? ' contenteditable="true" data-field="cook_time"' : ''}>${data.cook_time}</span>
             </div>`;
         }
+        if (data.yield) {
+            html += `<div class="meta-item">
+                <span class="meta-label">🍽️ Servings</span>
+                <span class="meta-value"${editable ? ' contenteditable="true" data-field="yield"' : ''}>${data.yield}</span>
+            </div>`;
+        }
         html += `</div>`;
     }
 
-    // Two Column Layout
-    html += `<div class="recipe-two-column">`;
-    
-    // Ingredients
+    // Ingredients (2 columns)
     if (data.ingredients && data.ingredients.length > 0) {
-        html += `<div class="recipe-section ingredients-column">
+        html += `<div class="recipe-section">
             <h2 class="recipe-section-title"><span class="icon">🥘</span> Ingredients</h2>
-            <ul class="ingredients-list"${editable ? ' data-field="ingredients"' : ''}>`;
+            <ul class="ingredients-list ingredients-two-column"${editable ? ' data-field="ingredients"' : ''}>`;
         data.ingredients.forEach((ingredient, index) => {
             if (editable) {
                 html += `<li contenteditable="true" data-index="${index}">${ingredient}</li>`;
@@ -1081,11 +1320,11 @@ function displayRecipeInModal(data, editable = false) {
         html += `</ul></div>`;
     }
 
-    // Instructions
+    // Instructions (2 columns)
     if (data.instructions && data.instructions.length > 0) {
-        html += `<div class="recipe-section instructions-column">
+        html += `<div class="recipe-section">
             <h2 class="recipe-section-title"><span class="icon">👨‍🍳</span> Instructions</h2>
-            <ol class="instructions-list"${editable ? ' data-field="instructions"' : ''}>`;
+            <ol class="instructions-list instructions-two-column"${editable ? ' data-field="instructions"' : ''}>`;
         data.instructions.forEach((instruction, index) => {
             if (editable) {
                 html += `<li contenteditable="true" data-index="${index}">${instruction}</li>`;
@@ -1095,8 +1334,6 @@ function displayRecipeInModal(data, editable = false) {
         });
         html += `</ol></div>`;
     }
-    
-    html += `</div>`;
 
     // Tips
     if (data.tips && data.tips.length > 0) {
@@ -1114,6 +1351,10 @@ function displayRecipeInModal(data, editable = false) {
     }
 
     modalRecipeContent.innerHTML = html;
+    
+    // Apply saved background preference
+    const savedBg = localStorage.getItem('recipeBackground') || 'none';
+    applyBackgroundToCards(savedBg);
 }
 
 function enableEditMode() {

@@ -455,6 +455,8 @@ Return ONLY the JSON object, no additional text.
         # Extract the text response
         response_text = response.text.strip()
         
+        print(f"Raw Gemini response (first 500 chars): {response_text[:500]}")
+        
         # Remove markdown code blocks if present
         if response_text.startswith('```json'):
             response_text = response_text[7:]
@@ -464,9 +466,34 @@ Return ONLY the JSON object, no additional text.
             response_text = response_text[:-3]
         
         response_text = response_text.strip()
+        
+        # Try to find JSON object boundaries if response has extra text
+        json_start = response_text.find('{')
+        json_end = response_text.rfind('}')
+        if json_start != -1 and json_end != -1 and json_end > json_start:
+            response_text = response_text[json_start:json_end + 1]
+        
+        print(f"Cleaned response (first 500 chars): {response_text[:500]}")
 
-        # Parse JSON response
-        recipe_data = json.loads(response_text)
+        # Parse JSON response with better error handling
+        try:
+            recipe_data = json.loads(response_text)
+        except json.JSONDecodeError as json_err:
+            print(f"JSON parsing failed at position {json_err.pos}")
+            print(f"Error: {json_err.msg}")
+            # Try to fix common JSON issues
+            
+            # Fix trailing commas in arrays/objects
+            import re
+            response_text = re.sub(r',(\s*[}\]])', r'\1', response_text)
+            
+            # Try parsing again
+            try:
+                recipe_data = json.loads(response_text)
+                print("Successfully parsed after fixing trailing commas")
+            except:
+                # If still failing, raise the original error
+                raise json_err
         
         # Ensure critical fields have default values if missing
         if not recipe_data.get('prep_time'):
@@ -482,17 +509,19 @@ Return ONLY the JSON object, no additional text.
 
     except json.JSONDecodeError as e:
         print(f"Error parsing Gemini response: {str(e)}")
-        print(f"Response text: {response_text}")
+        print(f"Full response text:\n{response_text}")
+        print(f"Character at error position: {response_text[e.pos-10:e.pos+10] if e.pos < len(response_text) else 'N/A'}")
         # Return a fallback structure
         return {
             'recipe_name': 'Recipe from Audio',
             'author': 'Home Chef',
-            'description': 'Could not extract structured recipe data',
+            'description': 'Could not extract structured recipe data. Please try again.',
             'ingredients': [],
             'instructions': [transcription],
             'prep_time': '15 minutes',
             'cook_time': '30 minutes',
-            'yield': 'Serves 4'
+            'yield': 'Serves 4',
+            'tips': ['The AI had trouble parsing the recipe. You can edit this manually.']
         }
     except Exception as e:
         print(f"Error using Gemini API: {str(e)}")

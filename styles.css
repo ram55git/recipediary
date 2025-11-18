@@ -44,6 +44,17 @@ header h1 {
     font-size: 2.5rem;
     margin-bottom: 10px;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo-icon {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    vertical-align: middle;
+    filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.2));
 }
 
 .subtitle {
@@ -359,37 +370,12 @@ header h1 {
     line-height: 1.2;
 }
 
-.recipe-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 12px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-color);
-}
-
 .recipe-author {
     color: var(--text-secondary);
     font-style: italic;
-    font-size: 0.9rem;
-    margin: 0;
-}
-
-.recipe-header-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    align-items: flex-end;
-}
-
-.header-meta-item {
-    font-size: 0.85rem;
-    color: var(--text-primary);
-    background: #f0f0f0;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-weight: 500;
-    white-space: nowrap;
+    font-size: 0.95rem;
+    margin: 0 0 12px 0;
+    text-align: center;
 }
 
 .recipe-description {
@@ -510,6 +496,17 @@ header h1 {
     font-size: 0.9rem;
 }
 
+/* Two-column layout for ingredients */
+.ingredients-two-column {
+    column-count: 2;
+    column-gap: 20px;
+}
+
+.ingredients-two-column li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
 .instructions-list {
     counter-reset: step-counter;
     list-style: none;
@@ -548,6 +545,28 @@ header h1 {
     justify-content: center;
     font-weight: bold;
     font-size: 0.75rem;
+}
+
+/* Two-column layout for ingredients */
+.ingredients-two-column {
+    column-count: 2;
+    column-gap: 20px;
+}
+
+.ingredients-two-column li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+/* Two-column layout for instructions */
+.instructions-two-column {
+    column-count: 2;
+    column-gap: 20px;
+}
+
+.instructions-two-column li {
+    break-inside: avoid;
+    page-break-inside: avoid;
 }
 
 .tips-list {
@@ -769,6 +788,12 @@ footer {
         font-size: 0.8rem;
     }
 
+    /* Single column on mobile */
+    .ingredients-two-column,
+    .instructions-two-column {
+        column-count: 1;
+    }
+
     .recipe-two-column {
         grid-template-columns: 1fr;
         gap: 10px;
@@ -781,22 +806,6 @@ footer {
 
     .recipe-two-column::after {
         display: none;
-    }
-
-    .recipe-header {
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-    }
-
-    .recipe-author {
-        text-align: center;
-        margin-bottom: 8px;
-    }
-
-    .recipe-header-meta {
-        align-items: center;
-        margin-top: 0;
     }
 
     .instructions-list li:before {
@@ -1261,6 +1270,21 @@ footer {
     font-weight: 600;
 }
 
+.btn-settings {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.btn-settings:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(30deg);
+}
+
 .btn-login,
 .btn-logout {
     padding: 8px 20px;
@@ -1433,6 +1457,105 @@ footer {
     background: white;
     color: #667eea;
     border: 2px solid white;
+}
+
+/* Settings Modal */
+.settings-modal {
+    max-width: 700px;
+}
+
+.settings-section {
+    margin-bottom: 2rem;
+}
+
+.settings-section h3 {
+    color: var(--primary);
+    margin-bottom: 0.5rem;
+    font-family: var(--font-heading);
+}
+
+.settings-section p {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+
+.background-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 1rem;
+}
+
+.background-option {
+    cursor: pointer;
+    text-align: center;
+    transition: transform 0.2s ease;
+}
+
+.background-option:hover {
+    transform: translateY(-4px);
+}
+
+.background-option.selected .background-preview {
+    border: 3px solid var(--primary);
+    box-shadow: 0 4px 12px rgba(244, 81, 30, 0.3);
+}
+
+.background-preview {
+    width: 100%;
+    height: 120px;
+    border-radius: 0.75rem;
+    border: 2px solid var(--border);
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.background-option p {
+    font-size: 0.85rem;
+    color: var(--text);
+    margin: 0;
+}
+
+/* Background Styles */
+.bg-none {
+    background: var(--bg-secondary);
+}
+
+/* Plain color backgrounds with 50% transparency */
+.bg-peach {
+    background: rgba(255, 218, 185, 0.5);
+}
+
+.bg-mint {
+    background: rgba(152, 251, 152, 0.5);
+}
+
+.bg-lavender {
+    background: rgba(230, 230, 250, 0.5);
+}
+
+.bg-sky {
+    background: rgba(135, 206, 235, 0.5);
+}
+
+.bg-rose {
+    background: rgba(255, 182, 193, 0.5);
+}
+
+.bg-lemon {
+    background: rgba(255, 250, 205, 0.5);
+}
+
+.bg-coral {
+    background: rgba(255, 127, 80, 0.5);
+}
+
+.bg-sage {
+    background: rgba(188, 212, 182, 0.5);
 }
 
 .auth-prompt .btn-primary:hover {
