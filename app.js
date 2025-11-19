@@ -76,6 +76,9 @@ function updateAuthUI(isAuthenticated) {
         // Enable recording/upload buttons
         if (startBtn) startBtn.disabled = false;
         if (transcribeBtn) transcribeBtn.disabled = false;
+
+        // Fetch user credits
+        fetchUserCredits();
     } else {
         authUser.style.display = 'none';
         authGuest.style.display = 'flex';
@@ -416,6 +419,136 @@ function getAuthHeaders() {
 }
 
 // ============================================================================
+// CREDIT SYSTEM & PAYMENTS
+// ============================================================================
+
+const userCreditsSpan = document.getElementById('userCredits');
+const buyCreditsBtn = document.getElementById('buyCreditsBtn');
+const pricingModal = document.getElementById('pricingModal');
+const pricingModalClose = document.getElementById('pricingModalClose');
+const currencySelect = document.getElementById('currencySelect');
+const buyButtons = document.querySelectorAll('.buy-btn');
+const priceElements = document.querySelectorAll('.price');
+
+// Fetch user credits
+async function fetchUserCredits() {
+    if (!currentUser) return;
+
+    try {
+        const response = await fetch('/api/user/credits', {
+            headers: getAuthHeaders()
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            if (userCreditsSpan) {
+                userCreditsSpan.textContent = data.credits;
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching credits:', error);
+    }
+}
+
+// Open Pricing Modal
+if (buyCreditsBtn) {
+    buyCreditsBtn.addEventListener('click', () => {
+        pricingModal.style.display = 'block';
+    });
+}
+
+// Close Pricing Modal
+if (pricingModalClose) {
+    pricingModalClose.addEventListener('click', () => {
+        pricingModal.style.display = 'none';
+    });
+}
+
+// Close modal when clicking outside
+window.addEventListener('click', (e) => {
+    if (e.target === pricingModal) {
+        pricingModal.style.display = 'none';
+    }
+});
+
+// Handle Currency Toggle
+if (currencySelect) {
+    currencySelect.addEventListener('change', (e) => {
+        const currency = e.target.value;
+        
+        // Update prices
+        priceElements.forEach(el => {
+            if (currency === 'INR') {
+                el.textContent = el.dataset.inr;
+            } else {
+                el.textContent = el.dataset.usd;
+            }
+        });
+
+        // Update button text/data
+        buyButtons.forEach(btn => {
+            const amount = currency === 'INR' ? btn.dataset.inr : btn.dataset.usd;
+            const symbol = currency === 'INR' ? '₹' : '$';
+            btn.textContent = `Buy for ${symbol}${amount}`;
+        });
+    });
+}
+
+// Handle Buy Buttons
+buyButtons.forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const credits = parseInt(btn.dataset.credits);
+        const currency = currencySelect.value;
+        const amount = parseFloat(currency === 'INR' ? btn.dataset.inr : btn.dataset.usd);
+
+        await buyCredits(credits, amount, currency);
+    });
+});
+
+async function buyCredits(credits, amount, currency) {
+    if (!currentUser) {
+        alert('Please login to purchase credits');
+        return;
+    }
+
+    const btn = document.querySelector(`.buy-btn[data-credits="${credits}"]`);
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+
+    try {
+        const response = await fetch('/api/buy-credits', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders()
+            },
+            body: JSON.stringify({
+                credits: credits,
+                amount: amount,
+                currency: currency
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert(`Successfully purchased ${credits} credits!`);
+            userCreditsSpan.textContent = data.new_balance;
+            pricingModal.style.display = 'none';
+        } else {
+            throw new Error(data.error || 'Purchase failed');
+        }
+    } catch (error) {
+        console.error('Purchase error:', error);
+        alert('Purchase failed: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+// ============================================================================
 // EXISTING CODE BELOW
 // ============================================================================
 
@@ -552,6 +685,12 @@ async function startRecording() {
     if (!authToken || !currentUser) {
         alert('Please login to record recipes. Click the "Login" button in the top right.');
         openAuthModal();
+        return;
+    }
+
+    // Check browser support
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showError('Your browser does not support audio recording. Please use a modern browser like Chrome, Firefox, or Edge.');
         return;
     }
 
@@ -774,10 +913,24 @@ async function transcribeAndGenerateRecipe() {
 
         if (!response.ok) {
             const errorData = await response.json();
+            
+            // Handle Insufficient Credits
+            if (response.status === 402) {
+                alert('Insufficient credits! Please purchase more credits to continue.');
+                pricingModal.style.display = 'block';
+                loadingCard.style.display = 'none';
+                return;
+            }
+            
             throw new Error(errorData.error || 'Failed to process audio');
         }
 
         const data = await response.json();
+        
+        // Update credits display
+        if (data.credits_remaining !== undefined && userCreditsSpan) {
+            userCreditsSpan.textContent = data.credits_remaining;
+        }
         
         if (data.error) {
             throw new Error(data.error);
@@ -991,7 +1144,8 @@ async function saveRecipeAsImage(contentElement = null) {
             left: -10000px;
             top: 0;
             box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            border-radius: 10px;
+            border-radius: 24px;
+            overflow: hidden;
         `;
         
         console.log('Created container');
@@ -1071,7 +1225,7 @@ async function saveRecipeAsImage(contentElement = null) {
 
         // Use html2canvas to capture the recipe
         const canvas = await html2canvas(recipeContainer, {
-            backgroundColor: '#ffffff',
+            backgroundColor: null,
             scale: 2,
             logging: true,
             useCORS: true,
@@ -1561,4 +1715,5 @@ async function deleteCurrentRecipe() {
 // Initialize Supabase authentication on page load
 window.addEventListener('DOMContentLoaded', () => {
     initSupabase();
+    fetchUserCredits();
 });

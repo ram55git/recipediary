@@ -16,6 +16,9 @@ from datetime import datetime
 import jwt
 from functools import wraps
 import base64
+import time
+from collections import defaultdict
+import requests
 
 # Load environment variables from .env file
 load_dotenv()
@@ -57,6 +60,23 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
+
+# Rate Limiting Configuration
+RATE_LIMIT_WINDOW = 60  # 1 minute
+RATE_LIMIT_MAX_REQUESTS = 5  # 5 requests per minute
+rate_limit_store = defaultdict(list)
+
+def check_rate_limit(user_id):
+    """Check if user has exceeded rate limit"""
+    current_time = time.time()
+    # Filter out old requests
+    rate_limit_store[user_id] = [t for t in rate_limit_store[user_id] if current_time - t < RATE_LIMIT_WINDOW]
+    
+    if len(rate_limit_store[user_id]) >= RATE_LIMIT_MAX_REQUESTS:
+        return False
+    
+    rate_limit_store[user_id].append(current_time)
+    return True
 
 # Configure Gemini API
 if GEMINI_API_KEY:
@@ -164,6 +184,49 @@ def process_recipe():
     1. Transcribe using Google Speech-to-Text
     2. Extract recipe information using Gemini
     """
+    # Check rate limit
+    if not check_rate_limit(request.user_id):
+        return jsonify({'error': 'Rate limit exceeded. Please wait a minute before trying again.'}), 429
+
+    # Check and deduct credits (Cost: 5 credits)
+    RECIPE_COST = 5
+    try:
+        token = request.headers.get('Authorization').split(' ')[1]
+        url = f"{SUPABASE_URL}/rest/v1/rpc/deduct_credits"
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        # Call the RPC function
+        response = requests.post(url, headers=headers, json={"amount": RECIPE_COST})
+        
+        if response.status_code != 200:
+            print(f"Credit check failed: {response.text}")
+            return jsonify({'error': 'Failed to check credits'}), 500
+            
+        result = response.json()
+        
+        if not result.get('success'):
+            error_msg = result.get('error', 'Unknown error')
+            if 'Insufficient credits' in error_msg:
+                return jsonify({
+                    'error': 'Insufficient credits', 
+                    'code': 'INSUFFICIENT_CREDITS',
+                    'current_balance': result.get('current_balance', 0),
+                    'required': RECIPE_COST
+                }), 402 # Payment Required
+            return jsonify({'error': error_msg}), 400
+            
+        print(f"✓ Deducted {RECIPE_COST} credits. New balance: {result.get('new_balance')}")
+        
+    except Exception as e:
+        print(f"Error checking credits: {str(e)}")
+        # For now, if credit check fails due to network/setup, we might want to fail safe or block.
+        # Let's block to enforce the system.
+        return jsonify({'error': f'Credit system error: {str(e)}'}), 500
+
     try:
         # Check if file is present
         if 'audio' not in request.files:
@@ -690,6 +753,81 @@ def delete_recipe(recipe_id):
         
     except Exception as e:
         print(f"Error deleting recipe: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user/credits', methods=['GET'])
+@verify_token
+def get_user_credits():
+    """Get current user credits"""
+    try:
+        # Call Supabase RPC to get credits or query table directly
+        # We use the user's token to authenticate with Supabase
+        token = request.headers.get('Authorization').split(' ')[1]
+        
+        url = f"{SUPABASE_URL}/rest/v1/profiles?select=credits&id=eq.{request.user_id}"
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data and len(data) > 0:
+                return jsonify({'credits': data[0]['credits']})
+            else:
+                # Profile might not exist yet, return default
+                return jsonify({'credits': 10})
+        else:
+            return jsonify({'error': 'Failed to fetch credits'}), 500
+            
+    except Exception as e:
+        print(f"Error fetching credits: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/buy-credits', methods=['POST'])
+@verify_token
+def buy_credits():
+    """
+    Simulate buying credits
+    In a real app, this would verify a Stripe payment intent
+    """
+    try:
+        data = request.json
+        amount = data.get('amount')
+        
+        if not amount or amount <= 0:
+            return jsonify({'error': 'Invalid amount'}), 400
+            
+        # Call Supabase RPC to add credits
+        # We use the anon key but the function is SECURITY DEFINER
+        # In production, use SERVICE_ROLE_KEY and do not expose this RPC publicly
+        
+        url = f"{SUPABASE_URL}/rest/v1/rpc/add_credits"
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}", # Using anon key to call RPC
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "user_id": request.user_id,
+            "amount": amount
+        }
+        
+        response = requests.post(url, headers=headers, json=payload)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True, 'message': f'Added {amount} credits'})
+        else:
+            print(f"Supabase RPC error: {response.text}")
+            return jsonify({'error': 'Failed to add credits'}), 500
+            
+    except Exception as e:
+        print(f"Error buying credits: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
