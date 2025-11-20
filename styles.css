@@ -1838,3 +1838,153 @@ button:disabled:hover {
     transform: none;
 }
 
+/* ============================================================================
+   RESPONSIVE DESIGN (MOBILE OPTIMIZATION)
+   ============================================================================ */
+
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+
+    .container {
+        width: 100%;
+        padding: 0;
+    }
+
+    /* Header Adjustments */
+    .top-bar {
+        flex-direction: column;
+        gap: 15px;
+        align-items: center;
+    }
+
+    .logo-container {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .app-logo {
+        width: 180px; /* Slightly smaller on mobile */
+    }
+
+    .user-controls {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .auth-user {
+        align-items: center;
+        width: 100%;
+    }
+
+    .user-info-group {
+        width: 100%;
+        justify-content: center;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+    }
+
+    .credits-group {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Navigation */
+    .main-nav {
+        gap: 10px;
+    }
+
+    .nav-btn {
+        padding: 10px 15px;
+        font-size: 0.9rem;
+        flex: 1;
+        justify-content: center;
+    }
+
+    /* Cards */
+    .card {
+        padding: 20px;
+        border-radius: 12px;
+    }
+
+    /* Recipe Content */
+    .ingredients-two-column,
+    .instructions-two-column {
+        column-count: 1;
+    }
+
+    .recipe-meta {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .meta-item {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .recipe-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .recipe-actions button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Modals */
+    .modal-content {
+        width: 95%;
+        margin: 5% auto;
+        padding: 20px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+    }
+
+    .modal-actions {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .modal-actions button {
+        flex: 1;
+        justify-content: center;
+        min-width: 100px;
+    }
+    
+    .modal-footer {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .modal-footer button {
+        width: 100%;
+        margin-left: 0 !important;
+    }
+
+    /* Settings */
+    .background-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    }
+    
+    /* Pricing */
+    .pricing-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Language Grid */
+    .language-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
