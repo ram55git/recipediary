@@ -21,6 +21,19 @@
     --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* Font Size Classes applied to html element */
+html.font-small {
+    font-size: 12px;
+}
+
+html.font-medium {
+    font-size: 14px;
+}
+
+html.font-large {
+    font-size: 16px; /* Default browser size */
+}
+
 body {
     font-family: var(--font-body);
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -1695,6 +1708,48 @@ footer {
 .settings-section p {
     color: var(--text-secondary);
     margin-bottom: 1rem;
+}
+
+/* Font Size Selector */
+.font-size-selector {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    background: #f0f0f0;
+    padding: 5px;
+    border-radius: 10px;
+}
+
+.font-option {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    background: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: var(--font-body);
+    transition: all 0.2s;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.font-option span.preview {
+    font-weight: bold;
+    line-height: 1;
+}
+
+.font-option.selected {
+    background: white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.font-option:hover:not(.selected) {
+    background: rgba(255,255,255,0.5);
 }
 
 .background-grid {

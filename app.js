@@ -147,6 +147,7 @@ function openAuthModal() {
 function openSettingsModal() {
     settingsModal.style.display = 'block';
     loadBackgroundPreference();
+    initFontSize();
 }
 
 function closeSettingsModal() {
@@ -280,6 +281,52 @@ async function handleLogout() {
 // ============================================================================
 // SETTINGS & BACKGROUND CUSTOMIZATION
 // ============================================================================
+
+function handleFontSizeSelection(e) {
+    const option = e.target.closest('.font-option');
+    if (!option) return;
+
+    const selectedSize = option.dataset.size;
+    
+    // Update UI selection
+    document.querySelectorAll('.font-option').forEach(opt => {
+        opt.classList.remove('selected');
+    });
+    option.classList.add('selected');
+    
+    // Save preference
+    localStorage.setItem('fontSize', selectedSize);
+    
+    // Apply font size
+    applyFontSize(selectedSize);
+}
+
+function applyFontSize(size) {
+    const html = document.documentElement;
+    
+    // Remove all font classes
+    html.classList.remove('font-small', 'font-medium', 'font-large');
+    
+    // Add selected class
+    if (size) {
+        html.classList.add(`font-${size}`);
+    } else {
+        // Default to large if nothing saved
+        html.classList.add('font-large');
+    }
+}
+
+function initFontSize() {
+    const savedSize = localStorage.getItem('fontSize') || 'large';
+    applyFontSize(savedSize);
+    
+    // Update UI
+    const selector = document.querySelector(`.font-option[data-size="${savedSize}"]`);
+    if (selector) {
+        document.querySelectorAll('.font-option').forEach(opt => opt.classList.remove('selected'));
+        selector.classList.add('selected');
+    }
+}
 
 function handleBackgroundSelection(e) {
     const option = e.target.closest('.background-option');
@@ -1926,4 +1973,11 @@ async function deleteCurrentRecipe() {
 window.addEventListener('DOMContentLoaded', () => {
     initSupabase();
     fetchUserCredits();
+    initFontSize();
 });
+
+// Font Size Selection Event Listener
+const fontSizeSelector = document.getElementById('fontSizeSelector');
+if (fontSizeSelector) {
+    fontSizeSelector.addEventListener('click', handleFontSizeSelection);
+}
