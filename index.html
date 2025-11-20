@@ -10,6 +10,9 @@
     <link rel="stylesheet" href="styles.css">
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Payment Gateways -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script src="https://js.stripe.com/v3/"></script>
     <!-- Configuration loaded from server (contains environment variables) -->
     <script src="/config.js"></script>
 </head>
@@ -65,35 +68,65 @@
             <!-- Language Selection -->
             <div class="card">
                 <h2>🌍 Select Language</h2>
-                <div class="language-selector">
-                    <label for="languageSelect">Choose the language you'll speak in:</label>
-                    <select id="languageSelect" class="language-select">
-                        <option value="en-US">English (US)</option>
-                        <option value="en-GB">English (UK)</option>
-                        <option value="es-ES">Spanish (Spain)</option>
-                        <option value="es-MX">Spanish (Mexico)</option>
-                        <option value="hi-IN">Hindi (India)</option>
-                        <option value="ta-IN">Tamil (India)</option>
-                        <option value="te-IN">Telugu (India)</option>
-                        <option value="ml-IN">Malayalam (India)</option>
-                        <option value="kn-IN">Kannada (India)</option>
-                        <option value="bn-IN">Bengali (India)</option>
-                        <option value="mr-IN">Marathi (India)</option>
-                        <option value="gu-IN">Gujarati (India)</option>
-                        <option value="fr-FR">French (France)</option>
-                        <option value="de-DE">German (Germany)</option>
-                        <option value="it-IT">Italian (Italy)</option>
-                        <option value="pt-BR">Portuguese (Brazil)</option>
-                        <option value="zh-CN">Chinese (Mandarin, Simplified)</option>
-                        <option value="ja-JP">Japanese (Japan)</option>
-                        <option value="ko-KR">Korean (Korea)</option>
-                        <option value="ar-SA">Arabic (Saudi Arabia)</option>
-                        <option value="ru-RU">Russian (Russia)</option>
-                        <option value="th-TH">Thai (Thailand)</option>
-                        <option value="vi-VN">Vietnamese (Vietnam)</option>
-                        <option value="id-ID">Indonesian (Indonesia)</option>
-                        <option value="ms-MY">Malay (Malaysia)</option>
-                    </select>
+                <div class="language-grid">
+                    <div class="language-selector">
+                        <label for="languageSelect">Input Language (Speaking):</label>
+                        <select id="languageSelect" class="language-select">
+                            <option value="en-US">English (US)</option>
+                            <option value="en-GB">English (UK)</option>
+                            <option value="es-ES">Spanish (Spain)</option>
+                            <option value="es-MX">Spanish (Mexico)</option>
+                            <option value="hi-IN">Hindi (India)</option>
+                            <option value="ta-IN">Tamil (India)</option>
+                            <option value="te-IN">Telugu (India)</option>
+                            <option value="ml-IN">Malayalam (India)</option>
+                            <option value="kn-IN">Kannada (India)</option>
+                            <option value="bn-IN">Bengali (India)</option>
+                            <option value="mr-IN">Marathi (India)</option>
+                            <option value="gu-IN">Gujarati (India)</option>
+                            <option value="fr-FR">French (France)</option>
+                            <option value="de-DE">German (Germany)</option>
+                            <option value="it-IT">Italian (Italy)</option>
+                            <option value="pt-BR">Portuguese (Brazil)</option>
+                            <option value="zh-CN">Chinese (Mandarin, Simplified)</option>
+                            <option value="ja-JP">Japanese (Japan)</option>
+                            <option value="ko-KR">Korean (Korea)</option>
+                            <option value="ar-SA">Arabic (Saudi Arabia)</option>
+                            <option value="ru-RU">Russian (Russia)</option>
+                            <option value="th-TH">Thai (Thailand)</option>
+                            <option value="vi-VN">Vietnamese (Vietnam)</option>
+                            <option value="id-ID">Indonesian (Indonesia)</option>
+                            <option value="ms-MY">Malay (Malaysia)</option>
+                        </select>
+                    </div>
+                    <div class="language-selector">
+                        <label for="outputLanguageSelect">Output Language (Recipe Card):</label>
+                        <select id="outputLanguageSelect" class="language-select">
+                            <option value="en">English</option>
+                            <option value="es">Spanish</option>
+                            <option value="hi">Hindi</option>
+                            <option value="ta">Tamil</option>
+                            <option value="te">Telugu</option>
+                            <option value="ml">Malayalam</option>
+                            <option value="kn">Kannada</option>
+                            <option value="bn">Bengali</option>
+                            <option value="mr">Marathi</option>
+                            <option value="gu">Gujarati</option>
+                            <option value="fr">French</option>
+                            <option value="de">German</option>
+                            <option value="it">Italian</option>
+                            <option value="pt">Portuguese</option>
+                            <option value="zh">Chinese</option>
+                            <option value="ja">Japanese</option>
+                            <option value="ko">Korean</option>
+                            <option value="ar">Arabic</option>
+                            <option value="ru">Russian</option>
+                            <option value="th">Thai</option>
+                            <option value="vi">Vietnamese</option>
+                            <option value="id">Indonesian</option>
+                            <option value="ms">Malay</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -177,6 +210,9 @@
                     <button class="btn btn-primary" id="saveImageBtn">
                         <span class="icon">💾</span> Save as Image
                     </button>
+                    <button class="btn btn-info" id="shareBtn" style="background-color: #17a2b8; color: white;">
+                        <span class="icon">📤</span> Share
+                    </button>
                     <button class="btn btn-secondary" id="newRecipeBtn">
                         <span class="icon">➕</span> Record Another Recipe
                     </button>
@@ -254,6 +290,9 @@
                 <div class="modal-footer">
                     <button class="btn btn-primary" id="modalSaveImageBtn">
                         <span class="icon">💾</span> Save as Image
+                    </button>
+                    <button class="btn btn-info" id="modalShareBtn" style="background-color: #17a2b8; color: white; margin-left: 10px;">
+                        <span class="icon">📤</span> Share
                     </button>
                 </div>
             </div>
@@ -412,7 +451,7 @@
                 <span class="modal-close" id="pricingModalClose">&times;</span>
                 <div class="modal-header">
                     <h2>🪙 Buy Credits</h2>
-                    <p>Generate more recipes with credits. Each recipe costs 5 credits.</p>
+                    <p>Generate more recipes with credits. Each recipe costs <span id="recipeCostDisplay">5</span> credits.</p>
                 </div>
                 <div class="modal-body">
                     <div class="currency-toggle">
@@ -423,43 +462,9 @@
                         </select>
                     </div>
                     
-                    <div class="pricing-grid">
-                        <div class="pricing-card">
-                            <div class="pricing-header">
-                                <h3>Starter</h3>
-                                <div class="price" data-inr="₹50" data-usd="$2.50">₹50</div>
-                            </div>
-                            <div class="pricing-features">
-                                <p><strong>50</strong> Credits</p>
-                                <p>Generate <strong>10</strong> Recipes</p>
-                            </div>
-                            <button class="btn btn-primary btn-block buy-btn" data-credits="50" data-inr="50" data-usd="2.50">Buy Now</button>
-                        </div>
-                        
-                        <div class="pricing-card popular">
-                            <div class="badge">Most Popular</div>
-                            <div class="pricing-header">
-                                <h3>Standard</h3>
-                                <div class="price" data-inr="₹100" data-usd="$5.00">₹100</div>
-                            </div>
-                            <div class="pricing-features">
-                                <p><strong>100</strong> Credits</p>
-                                <p>Generate <strong>20</strong> Recipes</p>
-                            </div>
-                            <button class="btn btn-primary btn-block buy-btn" data-credits="100" data-inr="100" data-usd="5.00">Buy Now</button>
-                        </div>
-                        
-                        <div class="pricing-card">
-                            <div class="pricing-header">
-                                <h3>Pro</h3>
-                                <div class="price" data-inr="₹500" data-usd="$25.00">₹500</div>
-                            </div>
-                            <div class="pricing-features">
-                                <p><strong>500</strong> Credits</p>
-                                <p>Generate <strong>100</strong> Recipes</p>
-                            </div>
-                            <button class="btn btn-primary btn-block buy-btn" data-credits="500" data-inr="500" data-usd="25.00">Buy Now</button>
-                        </div>
+                    <div class="pricing-grid" id="pricingGrid">
+                        <!-- Pricing cards will be injected here by JS -->
+                        <div style="text-align: center; width: 100%; padding: 20px;">Loading pricing...</div>
                     </div>
                     
                     <div class="payment-info">

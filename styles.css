@@ -223,6 +223,19 @@ header {
     box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
 }
 
+/* Language Grid */
+.language-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+@media (max-width: 600px) {
+    .language-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Recording Status */
 .recording-status {
     text-align: center;

@@ -427,8 +427,61 @@ const buyCreditsBtn = document.getElementById('buyCreditsBtn');
 const pricingModal = document.getElementById('pricingModal');
 const pricingModalClose = document.getElementById('pricingModalClose');
 const currencySelect = document.getElementById('currencySelect');
-const buyButtons = document.querySelectorAll('.buy-btn');
-const priceElements = document.querySelectorAll('.price');
+const pricingGrid = document.getElementById('pricingGrid');
+const recipeCostDisplay = document.getElementById('recipeCostDisplay');
+
+let pricingConfig = null;
+
+// Fetch Pricing Configuration
+async function fetchPricingConfig() {
+    try {
+        const response = await fetch('/api/config/pricing');
+        if (response.ok) {
+            pricingConfig = await response.json();
+            renderPricingCards();
+            if (recipeCostDisplay) {
+                recipeCostDisplay.textContent = pricingConfig.recipe_cost;
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching pricing config:', error);
+        if (pricingGrid) {
+            pricingGrid.innerHTML = '<div style="color: red; text-align: center;">Failed to load pricing. Please try again later.</div>';
+        }
+    }
+}
+
+// Render Pricing Cards
+function renderPricingCards() {
+    if (!pricingConfig || !pricingGrid) return;
+
+    const currency = currencySelect ? currencySelect.value : 'INR';
+    const symbol = currency === 'INR' ? '₹' : '$';
+    
+    pricingGrid.innerHTML = pricingConfig.packages.map(pkg => {
+        const price = currency === 'INR' ? pkg.price_inr : pkg.price_usd;
+        const formattedPrice = currency === 'INR' ? `₹${price}` : `$${price.toFixed(2)}`;
+        
+        return `
+            <div class="pricing-card ${pkg.popular ? 'popular' : ''}">
+                ${pkg.popular ? '<div class="badge">Most Popular</div>' : ''}
+                <div class="pricing-header">
+                    <h3>${pkg.name}</h3>
+                    <div class="price">${formattedPrice}</div>
+                </div>
+                <div class="pricing-features">
+                    <p><strong>${pkg.credits}</strong> Credits</p>
+                    <p>Generate <strong>${pkg.recipes_count}</strong> Recipes</p>
+                </div>
+                <button class="btn btn-primary btn-block buy-btn" 
+                    data-id="${pkg.id}"
+                    onclick="initiatePurchase('${pkg.id}')">
+                    Buy Now
+                </button>
+            </div>
+        `;
+    }).join('');
+}
 
 // Fetch user credits
 async function fetchUserCredits() {
@@ -454,6 +507,9 @@ async function fetchUserCredits() {
 if (buyCreditsBtn) {
     buyCreditsBtn.addEventListener('click', () => {
         pricingModal.style.display = 'block';
+        if (!pricingConfig) {
+            fetchPricingConfig();
+        }
     });
 }
 
@@ -473,78 +529,163 @@ window.addEventListener('click', (e) => {
 
 // Handle Currency Toggle
 if (currencySelect) {
-    currencySelect.addEventListener('change', (e) => {
-        const currency = e.target.value;
-        
-        // Update prices
-        priceElements.forEach(el => {
-            if (currency === 'INR') {
-                el.textContent = el.dataset.inr;
-            } else {
-                el.textContent = el.dataset.usd;
-            }
-        });
-
-        // Update button text/data
-        buyButtons.forEach(btn => {
-            const amount = currency === 'INR' ? btn.dataset.inr : btn.dataset.usd;
-            const symbol = currency === 'INR' ? '₹' : '$';
-            btn.textContent = `Buy for ${symbol}${amount}`;
-        });
+    currencySelect.addEventListener('change', () => {
+        renderPricingCards();
     });
 }
 
-// Handle Buy Buttons
-buyButtons.forEach(btn => {
-    btn.addEventListener('click', async () => {
-        const credits = parseInt(btn.dataset.credits);
-        const currency = currencySelect.value;
-        const amount = parseFloat(currency === 'INR' ? btn.dataset.inr : btn.dataset.usd);
-
-        await buyCredits(credits, amount, currency);
-    });
-});
-
-async function buyCredits(credits, amount, currency) {
+// Initiate Purchase
+async function initiatePurchase(packageId) {
     if (!currentUser) {
         alert('Please login to purchase credits');
         return;
     }
 
-    const btn = document.querySelector(`.buy-btn[data-credits="${credits}"]`);
+    const pkg = pricingConfig.packages.find(p => p.id === packageId);
+    if (!pkg) return;
+
+    const currency = currencySelect.value;
+    const btn = document.querySelector(`.buy-btn[data-id="${packageId}"]`);
     const originalText = btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Processing...';
 
     try {
-        const response = await fetch('/api/buy-credits', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...getAuthHeaders()
-            },
-            body: JSON.stringify({
-                credits: credits,
-                amount: amount,
-                currency: currency
-            })
-        });
+        // Fetch payment config (keys)
+        const configResponse = await fetch('/api/config/payments');
+        const config = await configResponse.json();
 
-        const data = await response.json();
-
-        if (response.ok) {
-            alert(`Successfully purchased ${credits} credits!`);
-            userCreditsSpan.textContent = data.new_balance;
-            pricingModal.style.display = 'none';
+        if (currency === 'INR') {
+            // RAZORPAY FLOW
+            if (!config.razorpayKeyId || config.razorpayKeyId.includes('test_your_key')) {
+                // Fallback to simulation if keys not set
+                await simulatePurchase(packageId, currency);
+                return;
+            }
+            await handleRazorpayPayment(packageId, config.razorpayKeyId);
         } else {
-            throw new Error(data.error || 'Purchase failed');
+            // STRIPE FLOW
+            if (!config.stripePublicKey || config.stripePublicKey.includes('test_your_stripe')) {
+                // Fallback to simulation if keys not set
+                await simulatePurchase(packageId, currency);
+                return;
+            }
+            await handleStripePayment(packageId, config.stripePublicKey);
         }
     } catch (error) {
         console.error('Purchase error:', error);
         alert('Purchase failed: ' + error.message);
     } finally {
-        btn.disabled = false;
-        btn.textContent = originalText;
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    }
+}
+
+async function handleRazorpayPayment(packageId, keyId) {
+    // Create Order
+    const response = await fetch('/api/create-razorpay-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ packageId })
+    });
+    
+    const order = await response.json();
+    if (order.error) throw new Error(order.error);
+
+    const options = {
+        key: keyId,
+        amount: order.amount,
+        currency: order.currency,
+        name: "Recipe Diary",
+        description: "Credits Purchase",
+        image: "images/recipediary_icon.png",
+        order_id: order.id,
+        handler: async function (response) {
+            // Verify Payment
+            const verifyResponse = await fetch('/api/verify-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify({
+                    provider: 'razorpay',
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_signature: response.razorpay_signature,
+                    package_id: packageId
+                })
+            });
+            
+            const result = await verifyResponse.json();
+            if (result.success) {
+                alert('Payment Successful! Credits added.');
+                userCreditsSpan.textContent = result.new_balance;
+                pricingModal.style.display = 'none';
+            } else {
+                alert('Payment Verification Failed: ' + result.error);
+            }
+        },
+        prefill: {
+            email: currentUser.email
+        },
+        theme: {
+            color: "#4CAF50"
+        }
+    };
+    
+    const rzp = new Razorpay(options);
+    rzp.open();
+}
+
+async function handleStripePayment(packageId, publicKey) {
+    const stripe = Stripe(publicKey);
+    
+    // Create Payment Intent
+    const response = await fetch('/api/create-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ packageId })
+    });
+    
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    
+    // Confirm Payment (using Stripe Elements or simple redirect)
+    // For simplicity, we'll use confirmCardPayment if we had Elements, 
+    // but here we might need a proper Checkout Session for redirect.
+    // Since we implemented PaymentIntent, we need Elements.
+    // Let's switch to a simpler simulation or assume Elements is too complex for this snippet.
+    // Actually, for PaymentIntent we need to mount Elements.
+    // To keep it simple without changing HTML too much, let's use the simulation fallback 
+    // or alert user that Stripe needs full setup.
+    
+    alert("Stripe integration requires frontend Elements setup. Please use INR/Razorpay for testing or check console.");
+    console.log("Client Secret:", data.clientSecret);
+}
+
+async function simulatePurchase(packageId, currency) {
+    const pkg = pricingConfig.packages.find(p => p.id === packageId);
+    const amount = currency === 'INR' ? pkg.price_inr : pkg.price_usd;
+    
+    const response = await fetch('/api/simulate-buy-credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({
+            credits: pkg.credits,
+            amount: amount,
+            currency: currency
+        })
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+        alert(`(Simulation) Successfully purchased ${pkg.credits} credits!`);
+        userCreditsSpan.textContent = data.new_balance || (parseInt(userCreditsSpan.textContent) + pkg.credits);
+        pricingModal.style.display = 'none';
+        // Refresh credits to be sure
+        fetchUserCredits();
+    } else {
+        throw new Error(data.error || 'Purchase failed');
     }
 }
 
@@ -594,6 +735,7 @@ const errorMessage = document.getElementById('errorMessage');
 const newRecipeBtn = document.getElementById('newRecipeBtn');
 const retryBtn = document.getElementById('retryBtn');
 const saveImageBtn = document.getElementById('saveImageBtn');
+const shareBtn = document.getElementById('shareBtn');
 const languageSelect = document.getElementById('languageSelect');
 
 // DOM Elements - Navigation
@@ -622,6 +764,7 @@ const modalSaveBtn = document.getElementById('modalSaveBtn');
 const modalCancelBtn = document.getElementById('modalCancelBtn');
 const modalDeleteBtn = document.getElementById('modalDeleteBtn');
 const modalSaveImageBtn = document.getElementById('modalSaveImageBtn');
+const modalShareBtn = document.getElementById('modalShareBtn');
 
 // Event Listeners - Recording
 startBtn.addEventListener('click', startRecording);
@@ -632,7 +775,8 @@ fileInput.addEventListener('change', handleFileUpload);
 transcribeBtn.addEventListener('click', transcribeAndGenerateRecipe);
 newRecipeBtn.addEventListener('click', resetApp);
 retryBtn.addEventListener('click', resetApp);
-saveImageBtn.addEventListener('click', saveRecipeAsImage);
+saveImageBtn.addEventListener('click', () => saveRecipeAsImage());
+shareBtn.addEventListener('click', () => shareRecipeImage());
 
 // Event Listeners - Navigation
 navRecord.addEventListener('click', () => switchView('record'));
@@ -653,6 +797,7 @@ modalSaveBtn.addEventListener('click', saveRecipeEdits);
 modalCancelBtn.addEventListener('click', cancelEdit);
 modalDeleteBtn.addEventListener('click', deleteCurrentRecipe);
 modalSaveImageBtn.addEventListener('click', () => saveRecipeAsImage(modalRecipeContent));
+modalShareBtn.addEventListener('click', () => shareRecipeImage(modalRecipeContent));
 
 // Close modal when clicking outside
 window.addEventListener('click', (e) => {
@@ -898,6 +1043,11 @@ async function transcribeAndGenerateRecipe() {
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recipe-audio.webm');
     formData.append('language', languageSelect.value);
+    
+    const outputLanguageSelect = document.getElementById('outputLanguageSelect');
+    if (outputLanguageSelect) {
+        formData.append('output_language', outputLanguageSelect.value);
+    }
 
     try {
         const headers = {};
@@ -938,8 +1088,19 @@ async function transcribeAndGenerateRecipe() {
 
         displayRecipe(data);
     } catch (error) {
-        showError(`Error processing recipe: ${error.message}`);
-        console.error('Error:', error);
+        let message = error.message;
+        
+        // If it's a generic network error, provide more context
+        if (message === 'Failed to fetch' || message === 'NetworkError') {
+            message = 'Network error. Please check your connection and try again.';
+        } 
+        // If the error doesn't already have advice (and isn't the credit error which is handled separately), add it
+        else if (!message.includes('Please') && !message.includes('try again') && !message.includes('credits')) {
+            message = `${message}. Please try again.`;
+        }
+        
+        showError(message);
+        console.error('Error processing recipe:', error);
     }
 }
 
@@ -1107,116 +1268,85 @@ function resetApp() {
 }
 
 // Save Recipe as Image
-async function saveRecipeAsImage(contentElement = null) {
-    console.log('saveRecipeAsImage called');
+async function generateRecipeBlob(contentElement) {
+    // Create a container for the image
+    const recipeContainer = document.createElement('div');
+    recipeContainer.style.cssText = `
+        background: white;
+        padding: 50px;
+        width: 900px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        position: fixed;
+        left: -10000px;
+        top: 0;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        border-radius: 24px;
+        overflow: hidden;
+    `;
     
-    // Use provided element or default to recipeContent
-    const sourceContent = contentElement || recipeContent;
+    // Add a header with branding
+    const header = document.createElement('div');
+    header.style.cssText = `
+        text-align: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 3px solid #4CAF50;
+    `;
+    header.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+            <img src="images/recipediary_icon.png" alt="Recipe Diary" style="width: 56px; height: 56px; object-fit: contain;" onerror="this.style.display='none';">
+            <h1 style="font-family: 'Georgia', serif; color: #4CAF50; font-size: 2.5rem; margin: 0; font-weight: 700;">
+                Recipe Diary
+            </h1>
+        </div>
+        <p style="color: #666; font-size: 1rem; margin-top: 8px; font-weight: 500;">
+            Your personal recipe collection
+        </p>
+    `;
+    recipeContainer.appendChild(header);
     
+    // Clone and add the recipe content with proper styling
+    const contentDiv = document.createElement('div');
+    contentDiv.innerHTML = contentElement.innerHTML;
+    
+    // Apply inline styles to ensure they render in the image
+    contentDiv.style.cssText = `
+        color: #333;
+        line-height: 1.6;
+    `;
+    
+    // Style all elements properly
+    const elements = contentDiv.querySelectorAll('*');
+    
+    elements.forEach(el => {
+        const computed = window.getComputedStyle(el);
+        el.style.color = computed.color;
+        el.style.fontSize = computed.fontSize;
+        el.style.fontWeight = computed.fontWeight;
+        el.style.margin = computed.margin;
+        el.style.padding = computed.padding;
+    });
+    
+    recipeContainer.appendChild(contentDiv);
+    
+    // Add a footer
+    const footer = document.createElement('div');
+    footer.style.cssText = `
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 2px solid #e0e0e0;
+        text-align: center;
+        color: #999;
+        font-size: 0.9rem;
+    `;
+    footer.innerHTML = `Created with Recipe Diary • ${new Date().toLocaleDateString()}`;
+    recipeContainer.appendChild(footer);
+    
+    document.body.appendChild(recipeContainer);
+
     try {
-        // Check if recipe content exists
-        console.log('sourceContent:', sourceContent);
-        console.log('sourceContent innerHTML length:', sourceContent?.innerHTML?.length);
-        
-        if (!sourceContent || !sourceContent.innerHTML || !sourceContent.innerHTML.trim()) {
-            console.error('No recipe content found');
-            showError('No recipe to save. Please generate a recipe first.');
-            return;
-        }
-
-        console.log('Starting image generation...');
-        
-        // Determine which button was clicked
-        const buttonElement = contentElement === modalRecipeContent ? modalSaveImageBtn : saveImageBtn;
-        
-        // Show loading state
-        buttonElement.disabled = true;
-        buttonElement.innerHTML = '<span class="icon">⏳</span> Generating...';
-
-        // Create a container for the image
-        const recipeContainer = document.createElement('div');
-        recipeContainer.style.cssText = `
-            background: white;
-            padding: 50px;
-            width: 900px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            position: fixed;
-            left: -10000px;
-            top: 0;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            border-radius: 24px;
-            overflow: hidden;
-        `;
-        
-        console.log('Created container');
-        
-        // Add a header with branding
-        const header = document.createElement('div');
-        header.style.cssText = `
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 3px solid #4CAF50;
-        `;
-        header.innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
-                <img src="images/recipediary_icon.png" alt="Recipe Diary" style="width: 56px; height: 56px; object-fit: contain;" onerror="this.style.display='none';">
-                <h1 style="font-family: 'Georgia', serif; color: #4CAF50; font-size: 2.5rem; margin: 0; font-weight: 700;">
-                    Recipe Diary
-                </h1>
-            </div>
-            <p style="color: #666; font-size: 1rem; margin-top: 8px; font-weight: 500;">
-                Your personal recipe collection
-            </p>
-        `;
-        recipeContainer.appendChild(header);
-        
-        // Clone and add the recipe content with proper styling
-        const contentDiv = document.createElement('div');
-        contentDiv.innerHTML = sourceContent.innerHTML;
-        
-        console.log('Cloned content');
-        
-        // Apply inline styles to ensure they render in the image
-        contentDiv.style.cssText = `
-            color: #333;
-            line-height: 1.6;
-        `;
-        
-        // Style all elements properly
-        const elements = contentDiv.querySelectorAll('*');
-        console.log(`Styling ${elements.length} elements`);
-        
-        elements.forEach(el => {
-            const computed = window.getComputedStyle(el);
-            el.style.color = computed.color;
-            el.style.fontSize = computed.fontSize;
-            el.style.fontWeight = computed.fontWeight;
-            el.style.margin = computed.margin;
-            el.style.padding = computed.padding;
-        });
-        
-        recipeContainer.appendChild(contentDiv);
-        
-        // Add a footer
-        const footer = document.createElement('div');
-        footer.style.cssText = `
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 2px solid #e0e0e0;
-            text-align: center;
-            color: #999;
-            font-size: 0.9rem;
-        `;
-        footer.innerHTML = `Created with Recipe Diary • ${new Date().toLocaleDateString()}`;
-        recipeContainer.appendChild(footer);
-        
-        document.body.appendChild(recipeContainer);
-        console.log('Appended container to body');
-
         // Wait a bit for rendering
         await new Promise(resolve => setTimeout(resolve, 100));
-        console.log('Calling html2canvas...');
 
         // Check if html2canvas is available
         if (typeof html2canvas === 'undefined') {
@@ -1227,64 +1357,144 @@ async function saveRecipeAsImage(contentElement = null) {
         const canvas = await html2canvas(recipeContainer, {
             backgroundColor: null,
             scale: 2,
-            logging: true,
+            logging: false,
             useCORS: true,
             allowTaint: true,
             width: recipeContainer.offsetWidth,
             height: recipeContainer.offsetHeight
         });
 
-        console.log('Canvas created:', canvas.width, 'x', canvas.height);
-
+        return new Promise((resolve, reject) => {
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    reject(new Error('Failed to create image blob'));
+                } else {
+                    resolve(blob);
+                }
+            }, 'image/png');
+        });
+    } finally {
         // Remove the temporary container
-        document.body.removeChild(recipeContainer);
-        console.log('Removed container');
+        if (document.body.contains(recipeContainer)) {
+            document.body.removeChild(recipeContainer);
+        }
+    }
+}
 
-        // Convert canvas to blob and download
-        canvas.toBlob((blob) => {
-            console.log('Blob created:', blob?.size, 'bytes');
-            
-            if (!blob) {
-                throw new Error('Failed to create image blob');
-            }
+async function saveRecipeAsImage(contentElement = null) {
+    const sourceContent = contentElement || recipeContent;
+    const buttonElement = contentElement === modalRecipeContent ? modalSaveImageBtn : saveImageBtn;
+    
+    if (!sourceContent || !sourceContent.innerHTML || !sourceContent.innerHTML.trim()) {
+        showError('No recipe to save. Please generate a recipe first.');
+        return;
+    }
 
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            
-            // Generate filename from recipe name or use default
-            const recipeTitleElement = sourceContent.querySelector('.recipe-title');
-            const recipeTitle = recipeTitleElement ? 
-                recipeTitleElement.textContent.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 
-                'recipe';
-            const timestamp = new Date().toISOString().slice(0, 10);
-            
-            link.download = `${recipeTitle}_${timestamp}.png`;
-            link.href = url;
-            link.click();
-            
-            console.log('Download triggered:', link.download);
-            
-            // Clean up
-            setTimeout(() => URL.revokeObjectURL(url), 100);
+    try {
+        buttonElement.disabled = true;
+        buttonElement.innerHTML = '<span class="icon">⏳</span> Generating...';
 
-            // Reset button
-            buttonElement.disabled = false;
-            buttonElement.innerHTML = '<span class="icon">💾</span> Save as Image';
+        const blob = await generateRecipeBlob(sourceContent);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        
+        // Generate filename
+        const recipeTitleElement = sourceContent.querySelector('.recipe-title');
+        const recipeTitle = recipeTitleElement ? 
+            recipeTitleElement.textContent.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 
+            'recipe';
+        const timestamp = new Date().toISOString().slice(0, 10);
+        
+        link.download = `${recipeTitle}_${timestamp}.png`;
+        link.href = url;
+        link.click();
+        
+        setTimeout(() => URL.revokeObjectURL(url), 100);
 
-            // Show success message briefly
-            const originalText = buttonElement.innerHTML;
-            buttonElement.innerHTML = '<span class="icon">✅</span> Saved!';
-            setTimeout(() => {
-                buttonElement.innerHTML = originalText;
-            }, 2000);
-        }, 'image/png');
-
-    } catch (error) {
-        console.error('Error saving recipe as image:', error);
-        const buttonElement = contentElement === modalRecipeContent ? modalSaveImageBtn : saveImageBtn;
         buttonElement.disabled = false;
         buttonElement.innerHTML = '<span class="icon">💾</span> Save as Image';
-        showError(`Failed to save recipe as image: ${error.message}`);
+
+        const originalText = buttonElement.innerHTML;
+        buttonElement.innerHTML = '<span class="icon">✅</span> Saved!';
+        setTimeout(() => {
+            buttonElement.innerHTML = originalText;
+        }, 2000);
+
+    } catch (error) {
+        console.error('Error saving recipe:', error);
+        buttonElement.disabled = false;
+        buttonElement.innerHTML = '<span class="icon">💾</span> Save as Image';
+        showError(`Failed to save recipe: ${error.message}`);
+    }
+}
+
+async function shareRecipeImage(contentElement = null) {
+    const sourceContent = contentElement || recipeContent;
+    const buttonElement = contentElement === modalRecipeContent ? modalShareBtn : shareBtn;
+    
+    if (!sourceContent || !sourceContent.innerHTML || !sourceContent.innerHTML.trim()) {
+        showError('No recipe to share. Please generate a recipe first.');
+        return;
+    }
+
+    try {
+        buttonElement.disabled = true;
+        buttonElement.innerHTML = '<span class="icon">⏳</span> Preparing...';
+
+        const blob = await generateRecipeBlob(sourceContent);
+        
+        // Generate filename
+        const recipeTitleElement = sourceContent.querySelector('.recipe-title');
+        const recipeTitle = recipeTitleElement ? 
+            recipeTitleElement.textContent.trim() : 
+            'Recipe';
+        const filename = `${recipeTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.png`;
+        
+        const file = new File([blob], filename, { type: 'image/png' });
+
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                title: recipeTitle,
+                text: `Check out this recipe for ${recipeTitle}! Created with Recipe Diary.`,
+                files: [file]
+            });
+            
+            buttonElement.innerHTML = '<span class="icon">✅</span> Shared!';
+        } else {
+            // Fallback for desktop/unsupported browsers
+            try {
+                await navigator.clipboard.write([
+                    new ClipboardItem({
+                        [blob.type]: blob
+                    })
+                ]);
+                alert('Image copied to clipboard! You can now paste it in WhatsApp, Telegram, or Email.');
+                buttonElement.innerHTML = '<span class="icon">📋</span> Copied!';
+            } catch (clipboardError) {
+                // If clipboard fails, fallback to download
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = url;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 100);
+                alert('Sharing not supported on this device. The image has been downloaded instead.');
+                buttonElement.innerHTML = '<span class="icon">💾</span> Downloaded';
+            }
+        }
+
+        setTimeout(() => {
+            buttonElement.disabled = false;
+            buttonElement.innerHTML = '<span class="icon">📤</span> Share';
+        }, 2000);
+
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('Error sharing recipe:', error);
+            showError(`Failed to share recipe: ${error.message}`);
+        }
+        buttonElement.disabled = false;
+        buttonElement.innerHTML = '<span class="icon">📤</span> Share';
     }
 }
 

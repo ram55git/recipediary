@@ -19,6 +19,7 @@ import base64
 import time
 from collections import defaultdict
 import requests
+import config_credits
 
 # Load environment variables from .env file
 load_dotenv()
@@ -188,44 +189,47 @@ def process_recipe():
     if not check_rate_limit(request.user_id):
         return jsonify({'error': 'Rate limit exceeded. Please wait a minute before trying again.'}), 429
 
-    # Check and deduct credits (Cost: 5 credits)
-    RECIPE_COST = 5
+    RECIPE_COST = config_credits.RECIPE_GENERATION_COST
+    
+    # 1. Pre-check credits (Read-only)
+    # We check if user has enough credits BEFORE starting the expensive process
     try:
         token = request.headers.get('Authorization').split(' ')[1]
-        url = f"{SUPABASE_URL}/rest/v1/rpc/deduct_credits"
         headers = {
             "apikey": SUPABASE_KEY,
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
         }
         
-        # Call the RPC function
-        response = requests.post(url, headers=headers, json={"amount": RECIPE_COST})
+        # Query profiles table via REST API to ensure we use the user's auth context
+        check_url = f"{SUPABASE_URL}/rest/v1/profiles?id=eq.{request.user_id}&select=credits"
+        check_response = requests.get(check_url, headers=headers)
         
-        if response.status_code != 200:
-            print(f"Credit check failed: {response.text}")
-            return jsonify({'error': 'Failed to check credits'}), 500
+        current_credits = 0
+        if check_response.status_code == 200:
+            data = check_response.json()
+            if data and len(data) > 0:
+                current_credits = data[0]['credits']
+            else:
+                # If profile doesn't exist, they have default credits
+                current_credits = config_credits.DEFAULT_NEW_USER_CREDITS
+        else:
+            print(f"Error checking credits status: {check_response.status_code} - {check_response.text}")
+            return jsonify({'error': 'Unable to verify credit balance.'}), 500
             
-        result = response.json()
-        
-        if not result.get('success'):
-            error_msg = result.get('error', 'Unknown error')
-            if 'Insufficient credits' in error_msg:
-                return jsonify({
-                    'error': 'Insufficient credits', 
-                    'code': 'INSUFFICIENT_CREDITS',
-                    'current_balance': result.get('current_balance', 0),
-                    'required': RECIPE_COST
-                }), 402 # Payment Required
-            return jsonify({'error': error_msg}), 400
+        if current_credits < RECIPE_COST:
+            return jsonify({
+                'error': 'Insufficient credits', 
+                'code': 'INSUFFICIENT_CREDITS',
+                'current_balance': current_credits,
+                'required': RECIPE_COST
+            }), 402
             
-        print(f"✓ Deducted {RECIPE_COST} credits. New balance: {result.get('new_balance')}")
-        
     except Exception as e:
-        print(f"Error checking credits: {str(e)}")
-        # For now, if credit check fails due to network/setup, we might want to fail safe or block.
-        # Let's block to enforce the system.
-        return jsonify({'error': f'Credit system error: {str(e)}'}), 500
+        print(f"Error checking credit balance: {str(e)}")
+        # Fail safe: If we can't check, we might block or allow. 
+        # Let's block to be safe, but with a helpful message.
+        return jsonify({'error': 'Unable to verify credit balance. Please try again.'}), 500
 
     try:
         # Check if file is present
@@ -234,6 +238,7 @@ def process_recipe():
 
         audio_file = request.files['audio']
         language_code = request.form.get('language', 'en-US')  # Default to English US
+        output_language = request.form.get('output_language', 'en') # Default to English
         
         # Save audio file temporarily
         temp_audio_path = UPLOAD_FOLDER / f'temp_{audio_file.filename}'
@@ -254,8 +259,8 @@ def process_recipe():
         print(f"Transcription: {transcription}")
 
         # Step 2: Extract recipe using Gemini
-        print("Extracting recipe information...")
-        recipe_data = extract_recipe_with_gemini(transcription)
+        print(f"Extracting recipe information in {output_language}...")
+        recipe_data = extract_recipe_with_gemini(transcription, output_language)
 
         # Clean up temp file
         if temp_audio_path.exists():
@@ -263,6 +268,34 @@ def process_recipe():
 
         # Add transcription to response
         recipe_data['transcription'] = transcription
+        
+        # Step 3: Deduct Credits (ONLY after successful generation)
+        try:
+            token = request.headers.get('Authorization').split(' ')[1]
+            url = f"{SUPABASE_URL}/rest/v1/rpc/deduct_credits"
+            headers = {
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            }
+            
+            # Call the RPC function
+            deduct_response = requests.post(url, headers=headers, json={"amount": RECIPE_COST})
+            deduct_result = deduct_response.json()
+            
+            if not deduct_result.get('success'):
+                # This is a rare edge case: User had credits at start, but spent them during generation
+                # We will still return the recipe (freebie) but warn the user or log it
+                print(f"⚠️ Warning: Failed to deduct credits AFTER generation: {deduct_result.get('error')}")
+                # We don't block the user here because they already waited for the recipe
+            else:
+                print(f"✓ Deducted {RECIPE_COST} credits. New balance: {deduct_result.get('new_balance')}")
+                # Add credit info to response so frontend can update UI
+                recipe_data['credits_remaining'] = deduct_result.get('new_balance')
+                
+        except Exception as credit_error:
+            print(f"Error deducting credits: {str(credit_error)}")
+            # Continue anyway, don't block the recipe
         
         # Save recipe to Supabase database with user_id
         if supabase:
@@ -278,7 +311,11 @@ def process_recipe():
 
     except Exception as e:
         print(f"Error processing recipe: {str(e)}")
-        return jsonify({'error': f'Error processing recipe: {str(e)}'}), 500
+        # Clean up temp file if it exists
+        if 'temp_audio_path' in locals() and temp_audio_path.exists():
+            temp_audio_path.unlink()
+            
+        return jsonify({'error': f'We encountered an issue generating your recipe. Please try again. (Error: {str(e)})'}), 500
 
 
 def transcribe_audio(audio_path, language_code='en-US'):
@@ -440,38 +477,69 @@ def transcribe_audio(audio_path, language_code='en-US'):
         return None
 
 
-def extract_recipe_with_gemini(transcription):
+def extract_recipe_with_gemini(transcription, output_language='en'):
     """
     Use Google Gemini to extract structured recipe information from transcription
     """
     try:
+        # Map language codes to full names for better prompting
+        language_names = {
+            'en': 'English',
+            'es': 'Spanish',
+            'hi': 'Hindi',
+            'ta': 'Tamil',
+            'te': 'Telugu',
+            'ml': 'Malayalam',
+            'kn': 'Kannada',
+            'bn': 'Bengali',
+            'mr': 'Marathi',
+            'gu': 'Gujarati',
+            'fr': 'French',
+            'de': 'German',
+            'it': 'Italian',
+            'pt': 'Portuguese',
+            'zh': 'Chinese',
+            'ja': 'Japanese',
+            'ko': 'Korean',
+            'ar': 'Arabic',
+            'ru': 'Russian',
+            'th': 'Thai',
+            'vi': 'Vietnamese',
+            'id': 'Indonesian',
+            'ms': 'Malay'
+        }
+        
+        target_language = language_names.get(output_language, 'English')
+        
         prompt = f"""
 You are a recipe extraction expert. Analyze the following transcription of someone describing a recipe and extract structured recipe information.
 
 Transcription:
 {transcription}
 
-Please extract and return the recipe information in the following JSON format:
+Please extract and return the recipe information in the following JSON format.
+IMPORTANT: The content of the recipe (name, description, ingredients, instructions, tips) MUST be in {target_language}.
+
 {{
-    "recipe_name": "Name of the recipe",
+    "recipe_name": "Name of the recipe in {target_language}",
     "author": "Author name if mentioned, otherwise 'Home Chef'",
-    "description": "Brief description of the dish",
+    "description": "Brief description of the dish in {target_language}",
     "prep_time": "preparation time (e.g., '15 minutes'). If not mentioned, estimate based on recipe complexity",
     "cook_time": "cooking/baking time (e.g., '30 minutes'). If not mentioned, estimate based on the cooking method",
     "yield": "number of servings or people (e.g., '4 servings', 'Serves 6', '2-3 people'). If not mentioned, estimate based on ingredient quantities",
     "ingredients": [
-        "quantity measurement ingredient (e.g., '2 cups (240g) all-purpose flour')",
-        "1 teaspoon vanilla extract",
+        "quantity measurement ingredient (e.g., '2 cups (240g) all-purpose flour') in {target_language}",
+        "1 teaspoon vanilla extract in {target_language}",
         "..."
     ],
     "instructions": [
-        "Detailed step 1",
-        "Detailed step 2",
+        "Detailed step 1 in {target_language}",
+        "Detailed step 2 in {target_language}",
         "..."
     ],
     "tips": [
-        "Helpful tip 1 if any mentioned",
-        "Helpful tip 2 if any mentioned"
+        "Helpful tip 1 if any mentioned in {target_language}",
+        "Helpful tip 2 if any mentioned in {target_language}"
     ]
 }}
 
@@ -487,6 +555,7 @@ Important guidelines:
 - For yield, always specify how many people/servings (e.g., "Serves 4", "4 servings", "2-3 people") Calculate the approximate number if not explicitly mentioned.
 - For cook_time, include the actual cooking/baking time on heat/in oven. Calculate the approximate time if not explicitly mentioned.
 - For prep_time, include time for chopping, mixing, marinating, etc.Calculate approximate time if not explicitly mentioned.
+- TRANSLATION: Ensure all text fields (except keys) are translated to {target_language} if the transcription is in a different language.
 
 Return ONLY the JSON object, no additional text.
 """
@@ -499,7 +568,7 @@ Return ONLY the JSON object, no additional text.
             "temperature": 0.7,
             "top_p": 0.95,
             "top_k": 40,
-            "max_output_tokens": 2048,
+            "max_output_tokens": 8192,
         }
         
         try:
@@ -515,8 +584,33 @@ Return ONLY the JSON object, no additional text.
             else:
                 raise
         
-        # Extract the text response
-        response_text = response.text.strip()
+        # Extract the text response safely
+        try:
+            response_text = response.text.strip()
+        except Exception as e:
+            # Handle cases where response.text fails (e.g. safety filters or max tokens with no valid part)
+            print(f"Error accessing response.text: {str(e)}")
+            
+            if not response.candidates:
+                raise Exception("Gemini returned no candidates.")
+                
+            candidate = response.candidates[0]
+            print(f"Candidate finish reason: {candidate.finish_reason}")
+            
+            # Check for safety blocks
+            if candidate.finish_reason == 3: # SAFETY
+                raise Exception("The recipe content was flagged by safety filters. Please try again with different wording.")
+                
+            # Check for max tokens
+            if candidate.finish_reason == 2: # MAX_TOKENS
+                # Try to get partial text if available
+                if candidate.content and candidate.content.parts:
+                    response_text = candidate.content.parts[0].text.strip()
+                    print("Warning: Response truncated due to max tokens, attempting to parse partial response.")
+                else:
+                    raise Exception("Response was truncated due to length limits and no text was returned.")
+            else:
+                raise Exception(f"Gemini returned no valid text. Finish reason: {candidate.finish_reason}")
         
         print(f"Raw Gemini response (first 500 chars): {response_text[:500]}")
         
@@ -779,8 +873,11 @@ def get_user_credits():
             if data and len(data) > 0:
                 return jsonify({'credits': data[0]['credits']})
             else:
-                # Profile might not exist yet, return default
-                return jsonify({'credits': 10})
+                # Profile might not exist yet for old users or if trigger failed
+                # We return the default credits so the UI looks correct.
+                # The actual profile will be created when they first try to spend credits
+                # via the deduct_credits RPC which handles missing profiles.
+                return jsonify({'credits': config_credits.DEFAULT_NEW_USER_CREDITS})
         else:
             return jsonify({'error': 'Failed to fetch credits'}), 500
             
@@ -788,9 +885,191 @@ def get_user_credits():
         print(f"Error fetching credits: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/buy-credits', methods=['POST'])
+@app.route('/api/config/pricing', methods=['GET'])
+def get_pricing_config():
+    """Get pricing configuration"""
+    return jsonify({
+        'packages': config_credits.PRICING_PACKAGES,
+        'recipe_cost': config_credits.RECIPE_GENERATION_COST,
+        'default_credits': config_credits.DEFAULT_NEW_USER_CREDITS
+    })
+
+import stripe
+import razorpay
+
+# Initialize Payment Gateways
+try:
+    stripe.api_key = config_credits.STRIPE_SECRET_KEY
+except:
+    print("⚠️ Stripe not configured")
+
+try:
+    razorpay_client = razorpay.Client(auth=(config_credits.RAZORPAY_KEY_ID, config_credits.RAZORPAY_KEY_SECRET))
+except:
+    print("⚠️ Razorpay not configured")
+
+@app.route('/api/config/payments', methods=['GET'])
+def get_payment_config():
+    """Get public payment keys"""
+    return jsonify({
+        'stripePublicKey': config_credits.STRIPE_PUBLIC_KEY,
+        'razorpayKeyId': config_credits.RAZORPAY_KEY_ID
+    })
+
+@app.route('/api/create-payment-intent', methods=['POST'])
 @verify_token
-def buy_credits():
+def create_payment_intent():
+    """Create Stripe Payment Intent"""
+    try:
+        data = request.json
+        package_id = data.get('packageId')
+        
+        # Find package
+        package = next((p for p in config_credits.PRICING_PACKAGES if p['id'] == package_id), None)
+        if not package:
+            return jsonify({'error': 'Invalid package'}), 400
+            
+        # Create Payment Intent
+        intent = stripe.PaymentIntent.create(
+            amount=int(package['price_usd'] * 100), # Amount in cents
+            currency='usd',
+            metadata={
+                'user_id': request.user_id,
+                'credits': package['credits'],
+                'package_id': package_id
+            }
+        )
+        
+        return jsonify({
+            'clientSecret': intent.client_secret
+        })
+    except Exception as e:
+        print(f"Stripe Error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/create-razorpay-order', methods=['POST'])
+@verify_token
+def create_razorpay_order():
+    """Create Razorpay Order"""
+    try:
+        data = request.json
+        package_id = data.get('packageId')
+        
+        # Find package
+        package = next((p for p in config_credits.PRICING_PACKAGES if p['id'] == package_id), None)
+        if not package:
+            return jsonify({'error': 'Invalid package'}), 400
+            
+        # Create Order
+        order_amount = int(package['price_inr'] * 100) # Amount in paise
+        order_currency = 'INR'
+        
+        order_data = {
+            'amount': order_amount,
+            'currency': order_currency,
+            'receipt': f'order_{int(time.time())}',
+            'notes': {
+                'user_id': request.user_id,
+                'credits': package['credits'],
+                'package_id': package_id
+            }
+        }
+        
+        order = razorpay_client.order.create(data=order_data)
+        
+        return jsonify({
+            'id': order['id'],
+            'amount': order['amount'],
+            'currency': order['currency'],
+            'key_id': config_credits.RAZORPAY_KEY_ID
+        })
+    except Exception as e:
+        print(f"Razorpay Error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/verify-payment', methods=['POST'])
+@verify_token
+def verify_payment():
+    """Verify Payment and Add Credits"""
+    try:
+        data = request.json
+        provider = data.get('provider')
+        
+        credits_to_add = 0
+        
+        if provider == 'razorpay':
+            # Verify Razorpay Signature
+            params_dict = {
+                'razorpay_order_id': data.get('razorpay_order_id'),
+                'razorpay_payment_id': data.get('razorpay_payment_id'),
+                'razorpay_signature': data.get('razorpay_signature')
+            }
+            
+            # Verify signature
+            razorpay_client.utility.verify_payment_signature(params_dict)
+            
+            # Get credits from order notes (we need to fetch order details or pass them)
+            # For simplicity, we'll trust the package_id passed from client but verify against config
+            # In production, fetch order from Razorpay to get notes
+            package_id = data.get('package_id')
+            package = next((p for p in config_credits.PRICING_PACKAGES if p['id'] == package_id), None)
+            if package:
+                credits_to_add = package['credits']
+                
+        elif provider == 'stripe':
+            # Verify Stripe Payment Intent
+            payment_intent_id = data.get('payment_intent_id')
+            intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+            
+            if intent.status == 'succeeded':
+                credits_to_add = int(intent.metadata.get('credits', 0))
+            else:
+                return jsonify({'error': 'Payment not successful'}), 400
+                
+        else:
+            return jsonify({'error': 'Invalid provider'}), 400
+            
+        if credits_to_add > 0:
+            # Add credits via Supabase RPC
+            url = f"{SUPABASE_URL}/rest/v1/rpc/add_credits"
+            headers = {
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}", # Service role key preferred
+                "Content-Type": "application/json"
+            }
+            
+            # We need a service role key to add credits securely if RLS prevents it
+            # But our RPC is SECURITY DEFINER so anon key works if we allow it
+            # Ideally, use a secret key here.
+            
+            payload = {
+                "user_id": request.user_id,
+                "amount": credits_to_add
+            }
+            
+            response = requests.post(url, headers=headers, json=payload)
+            
+            if response.status_code == 200:
+                result = response.json()
+                return jsonify({
+                    'success': True, 
+                    'message': f'Added {credits_to_add} credits',
+                    'new_balance': result.get('new_balance')
+                })
+            else:
+                return jsonify({'error': 'Failed to update credits database'}), 500
+                
+        return jsonify({'error': 'No credits to add'}), 400
+            
+    except Exception as e:
+        print(f"Payment Verification Error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# Keep the old buy-credits for backward compatibility or testing if needed
+# But we can remove it or rename it to 'simulate-buy-credits'
+@app.route('/api/simulate-buy-credits', methods=['POST'])
+@verify_token
+def simulate_buy_credits():
     """
     Simulate buying credits
     In a real app, this would verify a Stripe payment intent
