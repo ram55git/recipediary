@@ -10,3 +10,6 @@ supabase
 PyJWT
 cryptography
 gunicorn
+requests
+stripe
+razorpay
