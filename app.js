@@ -963,8 +963,9 @@ async function startRecording() {
                 return;
             }
             
-            audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            console.log('Audio blob created:', audioBlob.size, 'bytes');
+            const mimeType = mediaRecorder.mimeType || 'audio/webm';
+            audioBlob = new Blob(audioChunks, { type: mimeType });
+            console.log('Audio blob created:', audioBlob.size, 'bytes', 'type:', mimeType);
             
             if (audioBlob.size === 0) {
                 console.error('Audio blob is empty');
@@ -1141,7 +1142,20 @@ async function transcribeAndGenerateRecipe() {
     showLoading('Transcribing audio...');
 
     const formData = new FormData();
-    formData.append('audio', audioBlob, 'recipe-audio.webm');
+    
+    // Determine file extension from blob type
+    let extension = 'webm';
+    if (audioBlob.type.includes('mp4') || audioBlob.type.includes('m4a')) {
+        extension = 'm4a';
+    } else if (audioBlob.type.includes('ogg')) {
+        extension = 'ogg';
+    } else if (audioBlob.type.includes('wav')) {
+        extension = 'wav';
+    } else if (audioBlob.type.includes('mpeg') || audioBlob.type.includes('mp3')) {
+        extension = 'mp3';
+    }
+    
+    formData.append('audio', audioBlob, `recipe-audio.${extension}`);
     
     // Determine which language selector to use
     let selectedLanguage = 'en-US';
