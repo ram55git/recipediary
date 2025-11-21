@@ -5,20 +5,20 @@
 }
 
 :root {
-    --primary-color: #4CAF50;
-    --secondary-color: #2196F3;
+    --primary-color: #2E7D32;
+    --secondary-color: #66BB6A;
     --warning-color: #FF9800;
     --danger-color: #F44336;
-    --success-color: #8BC34A;
-    --bg-color: #f5f5f5;
+    --success-color: #4CAF50;
+    --bg-color: #f1f8e9;
     --card-bg: #ffffff;
     --text-primary: #333333;
-    --text-secondary: #666666;
-    --border-color: #e0e0e0;
+    --text-secondary: #555555;
+    --border-color: #c8e6c9;
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.15);
-    --font-heading: 'Poppins', sans-serif;
-    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-heading: 'Montserrat', sans-serif;
+    --font-body: 'Montserrat', sans-serif;
 }
 
 /* Font Size Classes applied to html element */
@@ -36,7 +36,8 @@ html.font-large {
 
 body {
     font-family: var(--font-body);
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-weight: 300;
+    background: linear-gradient(135deg, #43a047 0%, #1b5e20 100%);
     min-height: 100vh;
     padding: 20px;
     color: var(--text-primary);
@@ -49,7 +50,7 @@ body {
 
 /* Header Layout */
 header {
-    margin-bottom: 30px;
+    margin-bottom: 15px;
     color: white;
 }
 
@@ -57,23 +58,23 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 5px;
 }
 
 .auth-user {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 10px;
+    gap: 5px;
 }
 
 .user-info-group {
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 8px;
     font-size: 0.9rem;
     background: rgba(255, 255, 255, 0.1);
-    padding: 5px 15px;
+    padding: 4px 10px;
     border-radius: 20px;
     backdrop-filter: blur(5px);
 }
@@ -113,17 +114,17 @@ header {
 .credits-group {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
 }
 
 .credit-badge {
     display: flex;
     align-items: center;
     background: rgba(0, 0, 0, 0.2);
-    padding: 8px 16px;
+    padding: 6px 12px;
     border-radius: 12px;
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -188,9 +189,12 @@ header {
 }
 
 .card h2 {
+    font-family: var(--font-heading);
     font-size: 1.5rem;
     margin-bottom: 20px;
     color: var(--text-primary);
+    font-weight: 900;
+    font-style: italic;
 }
 
 /* Language Selector */
@@ -497,7 +501,8 @@ header {
     color: #2c3e50;
     margin-bottom: 8px;
     text-align: center;
-    font-weight: 700;
+    font-weight: 900;
+    font-style: italic;
     letter-spacing: -0.5px;
     line-height: 1.2;
 }
@@ -1061,24 +1066,24 @@ footer {
 
 .main-nav {
     display: flex;
-    gap: 15px;
+    gap: 10px;
     justify-content: center;
-    margin-top: 20px;
+    margin-top: 10px;
 }
 
 .nav-btn {
     background: rgba(255, 255, 255, 0.2);
     color: white;
     border: 2px solid rgba(255, 255, 255, 0.3);
-    padding: 12px 30px;
+    padding: 8px 20px;
     border-radius: 25px;
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     backdrop-filter: blur(10px);
 }
 
@@ -1090,7 +1095,7 @@ footer {
 
 .nav-btn.active {
     background: white;
-    color: #667eea;
+    color: var(--primary-color);
     border-color: white;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
@@ -1169,6 +1174,8 @@ footer {
     color: var(--text-primary);
     margin: 0 0 5px 0;
     line-height: 1.3;
+    font-weight: 900;
+    font-style: italic;
 }
 
 .gallery-card-author {
@@ -1315,6 +1322,8 @@ footer {
     color: var(--text-primary);
     font-family: var(--font-heading);
     font-size: 1.5rem;
+    font-weight: 900;
+    font-style: italic;
 }
 
 .modal-actions {
@@ -1525,7 +1534,7 @@ footer {
 .btn-login:hover,
 .btn-logout:hover {
     background: white;
-    color: #667eea;
+    color: var(--primary-color);
     transform: translateY(-2px);
 }
 
@@ -1666,20 +1675,22 @@ footer {
 
 /* Auth Prompt Banner */
 .auth-prompt {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #43a047 0%, #1b5e20 100%);
     color: white;
     border: none;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
 }
 
 .auth-prompt h3 {
     color: white;
     font-family: var(--font-heading);
+    font-weight: 900;
+    font-style: italic;
 }
 
 .auth-prompt .btn-primary {
     background: white;
-    color: #667eea;
+    color: var(--primary-color);
     border: 2px solid white;
 }
 
@@ -1693,9 +1704,11 @@ footer {
 }
 
 .settings-section h3 {
-    color: var(--primary);
+    color: var(--primary-color);
     margin-bottom: 0.5rem;
     font-family: var(--font-heading);
+    font-weight: 900;
+    font-style: italic;
 }
 
 .settings-section p {
@@ -1762,8 +1775,8 @@ footer {
 }
 
 .background-option.selected .background-preview {
-    border: 3px solid var(--primary);
-    box-shadow: 0 4px 12px rgba(244, 81, 30, 0.3);
+    border: 3px solid var(--primary-color);
+    box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
 }
 
 .background-preview {
@@ -1855,7 +1868,7 @@ button:disabled:hover {
     /* Header Adjustments */
     .top-bar {
         flex-direction: column;
-        gap: 15px;
+        gap: 8px;
         align-items: center;
     }
 
@@ -1865,7 +1878,7 @@ button:disabled:hover {
     }
 
     .app-logo {
-        width: 180px; /* Slightly smaller on mobile */
+        width: 150px; /* Slightly smaller on mobile */
     }
 
     .user-controls {
@@ -1876,12 +1889,13 @@ button:disabled:hover {
     .auth-user {
         align-items: center;
         width: 100%;
+        gap: 5px;
     }
 
     .user-info-group {
         width: 100%;
         justify-content: center;
-        margin-bottom: 10px;
+        margin-bottom: 5px;
         flex-wrap: wrap;
     }
 
@@ -1892,11 +1906,12 @@ button:disabled:hover {
 
     /* Navigation */
     .main-nav {
-        gap: 10px;
+        gap: 8px;
+        margin-top: 10px;
     }
 
     .nav-btn {
-        padding: 10px 15px;
+        padding: 8px 12px;
         font-size: 0.9rem;
         flex: 1;
         justify-content: center;
@@ -1985,6 +2000,290 @@ button:disabled:hover {
     /* Language Grid */
     .language-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================================================
+   NEW INPUT METHODS LAYOUT
+   ============================================================================ */
+
+.input-methods-container {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    min-height: 300px;
+}
+
+.input-method-section {
+    flex: 1;
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid transparent;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    cursor: pointer;
+    position: relative;
+}
+
+.input-method-section:hover {
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+.input-method-section.active {
+    flex: 2.5;
+    border-color: var(--primary-color);
+    box-shadow: 0 10px 25px rgba(46, 125, 50, 0.15);
+    cursor: default;
+}
+
+.input-method-section:not(.active) {
+    opacity: 0.7;
+    background: #f9f9f9;
+}
+
+.input-method-section:not(.active):hover {
+    opacity: 0.9;
+    background: white;
+}
+
+.section-header h2 {
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    font-weight: 900;
+    font-style: italic;
+}
+
+.section-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.input-method-section.active .section-content {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* Compact Language Selector */
+.language-selector-compact {
+    margin-bottom: 20px;
+}
+
+.language-selector-compact label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.language-selector-compact select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+}
+
+/* Modern Recording Controls */
+.recording-controls-modern {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 20px;
+}
+
+.timer-display {
+    font-size: 2.5rem;
+    font-weight: 300;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+}
+
+.status-text {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+
+.main-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.btn-record-modern {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: white;
+    border: 4px solid #ff5252;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(255, 82, 82, 0.2);
+}
+
+.btn-record-modern:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 15px rgba(255, 82, 82, 0.3);
+}
+
+.btn-record-modern.recording {
+    border-color: transparent;
+    background: #ff5252;
+    animation: pulse-red 2s infinite;
+}
+
+.record-dot {
+    width: 30px;
+    height: 30px;
+    background: #ff5252;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.btn-record-modern.recording .record-dot {
+    background: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px; /* Square for stop/pause look if needed, but we have separate buttons */
+    opacity: 0; /* Hide dot when recording, maybe show timer or something else? Or just keep it simple */
+}
+
+/* Secondary Controls */
+.secondary-controls {
+    display: flex;
+    gap: 15px;
+    margin-top: 10px;
+    animation: slideUpFade 0.3s ease;
+}
+
+.btn-control-modern {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    background: #f5f5f5;
+    color: var(--text-primary);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.btn-control-modern:hover {
+    background: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+#btnStop { color: #f44336; }
+#btnPause { color: #ff9800; }
+#btnResume { color: #4caf50; }
+#btnReset { color: #2196f3; }
+
+/* Progress Bar Modern */
+.progress-bar-modern {
+    width: 100%;
+    height: 6px;
+    background: #eee;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 20px;
+}
+
+/* Upload Area Modern */
+.upload-area-modern {
+    flex: 1;
+    border: 2px dashed var(--border-color);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    background: #fafafa;
+}
+
+.upload-area-modern:hover {
+    border-color: var(--primary-color);
+    background: #f0fff4;
+}
+
+.upload-label-modern {
+    text-align: center;
+    cursor: pointer;
+    padding: 20px;
+}
+
+.upload-label-modern .icon {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    display: block;
+    color: var(--text-secondary);
+}
+
+.upload-label-modern p {
+    color: var(--text-secondary);
+    margin: 5px 0;
+}
+
+.upload-label-modern .file-info {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+@keyframes pulse-red {
+    0% { box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.4); }
+    70% { box-shadow: 0 0 0 15px rgba(255, 82, 82, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 82, 82, 0); }
+}
+
+@keyframes slideUpFade {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive for Input Methods */
+@media (max-width: 768px) {
+    .input-methods-container {
+        flex-direction: column;
+        min-height: auto;
+    }
+
+    .input-method-section {
+        flex: none;
+        width: 100%;
+        min-height: 80px; /* Collapsed height */
+    }
+
+    .input-method-section.active {
+        flex: none;
+        min-height: 400px;
+    }
+    
+    .input-method-section:not(.active) .section-content {
+        display: none;
     }
 }
 

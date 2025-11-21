@@ -61,17 +61,20 @@ function updateAuthUI(isAuthenticated) {
     const authUser = document.getElementById('authUser');
     const authGuest = document.getElementById('authGuest');
     const userEmail = document.getElementById('userEmail');
-    const authPrompt = document.getElementById('authPrompt');
+    
+    const landingView = document.getElementById('landingView');
+    const appContent = document.getElementById('appContent');
 
     authLoading.style.display = 'none';
 
     if (isAuthenticated) {
+        // Show App Content, Hide Landing
+        if (landingView) landingView.style.display = 'none';
+        if (appContent) appContent.style.display = 'block';
+
         authUser.style.display = 'flex';
         authGuest.style.display = 'none';
         userEmail.textContent = currentUser.email;
-        
-        // Hide auth prompt banner
-        if (authPrompt) authPrompt.style.display = 'none';
         
         // Enable recording/upload buttons
         if (startBtn) startBtn.disabled = false;
@@ -80,11 +83,12 @@ function updateAuthUI(isAuthenticated) {
         // Fetch user credits
         fetchUserCredits();
     } else {
+        // Show Landing, Hide App Content
+        if (landingView) landingView.style.display = 'flex';
+        if (appContent) appContent.style.display = 'none';
+
         authUser.style.display = 'none';
         authGuest.style.display = 'flex';
-        
-        // Show auth prompt banner
-        if (authPrompt) authPrompt.style.display = 'block';
         
         // Disable recording/upload buttons and show login message
         if (startBtn) {
@@ -113,8 +117,12 @@ const tabLogin = document.getElementById('tabLogin');
 const tabSignup = document.getElementById('tabSignup');
 const loginForm = document.getElementById('loginForm');
 const signupForm = document.getElementById('signupForm');
+const landingLoginBtn = document.getElementById('landingLoginBtn');
 
 // Auth Event Listeners
+if (landingLoginBtn) {
+    landingLoginBtn.addEventListener('click', openAuthModal);
+}
 loginBtn.addEventListener('click', openAuthModal);
 logoutBtn.addEventListener('click', handleLogout);
 settingsBtn.addEventListener('click', openSettingsModal);
@@ -764,6 +772,7 @@ const startBtn = document.getElementById('startBtn');
 const pauseBtn = document.getElementById('pauseBtn');
 const resumeBtn = document.getElementById('resumeBtn');
 const stopBtn = document.getElementById('stopBtn');
+const resetBtn = document.getElementById('resetBtn'); // New
 const timer = document.getElementById('timer');
 const statusIndicator = document.getElementById('statusIndicator');
 const progressFill = document.getElementById('progressFill');
@@ -783,7 +792,12 @@ const newRecipeBtn = document.getElementById('newRecipeBtn');
 const retryBtn = document.getElementById('retryBtn');
 const saveImageBtn = document.getElementById('saveImageBtn');
 const shareBtn = document.getElementById('shareBtn');
-const languageSelect = document.getElementById('languageSelect');
+// const languageSelect = document.getElementById('languageSelect'); // Removed
+const languageSelectRecord = document.getElementById('languageSelectRecord');
+const languageSelectUpload = document.getElementById('languageSelectUpload');
+const recordSection = document.getElementById('recordSection');
+const uploadSection = document.getElementById('uploadSection');
+const recordingControls = document.getElementById('recordingControls'); // Secondary controls container
 
 // DOM Elements - Navigation
 const navRecord = document.getElementById('navRecord');
@@ -818,12 +832,28 @@ startBtn.addEventListener('click', startRecording);
 pauseBtn.addEventListener('click', pauseRecording);
 resumeBtn.addEventListener('click', resumeRecording);
 stopBtn.addEventListener('click', stopRecording);
+resetBtn.addEventListener('click', resetRecording);
 fileInput.addEventListener('change', handleFileUpload);
 transcribeBtn.addEventListener('click', transcribeAndGenerateRecipe);
 newRecipeBtn.addEventListener('click', resetApp);
 retryBtn.addEventListener('click', resetApp);
 saveImageBtn.addEventListener('click', () => saveRecipeAsImage());
 shareBtn.addEventListener('click', () => shareRecipeImage());
+
+// Section Toggles
+recordSection.addEventListener('click', () => {
+    if (!recordSection.classList.contains('active')) {
+        recordSection.classList.add('active');
+        uploadSection.classList.remove('active');
+    }
+});
+
+uploadSection.addEventListener('click', () => {
+    if (!uploadSection.classList.contains('active')) {
+        uploadSection.classList.add('active');
+        recordSection.classList.remove('active');
+    }
+});
 
 // Event Listeners - Navigation
 navRecord.addEventListener('click', () => switchView('record'));
@@ -872,6 +902,26 @@ uploadArea.addEventListener('drop', (e) => {
 });
 
 // Recording Functions
+function resetRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        // Stop without triggering the usual onstop logic if possible, 
+        // or just handle it by clearing data immediately
+        mediaRecorder.onstop = null; // Prevent processing
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    }
+    
+    clearInterval(timerInterval);
+    audioChunks = [];
+    audioBlob = null;
+    recordingDuration = 0;
+    updateTimer(0);
+    progressFill.style.width = '0%';
+    
+    // Reset UI
+    updateUIForStopped();
+}
+
 async function startRecording() {
     // Check if user is logged in
     if (!authToken || !currentUser) {
@@ -994,28 +1044,31 @@ function updateProgress(seconds) {
 }
 
 function updateUIForRecording() {
-    startBtn.disabled = true;
-    pauseBtn.disabled = false;
-    resumeBtn.disabled = true;
-    stopBtn.disabled = false;
+    startBtn.style.display = 'none';
+    recordingControls.style.display = 'flex';
+    
+    pauseBtn.style.display = 'flex';
+    resumeBtn.style.display = 'none';
+    stopBtn.style.display = 'flex';
+    resetBtn.style.display = 'flex';
+    
     statusIndicator.textContent = 'Recording...';
-    statusIndicator.className = 'status-indicator recording';
+    statusIndicator.className = 'status-text recording';
 }
 
 function updateUIForPaused() {
-    pauseBtn.disabled = true;
-    resumeBtn.disabled = false;
+    pauseBtn.style.display = 'none';
+    resumeBtn.style.display = 'flex';
     statusIndicator.textContent = 'Paused';
-    statusIndicator.className = 'status-indicator paused';
+    statusIndicator.className = 'status-text paused';
 }
 
 function updateUIForStopped() {
-    startBtn.disabled = false;
-    pauseBtn.disabled = true;
-    resumeBtn.disabled = true;
-    stopBtn.disabled = true;
+    startBtn.style.display = 'flex';
+    recordingControls.style.display = 'none';
+    
     statusIndicator.textContent = 'Ready';
-    statusIndicator.className = 'status-indicator';
+    statusIndicator.className = 'status-text';
 }
 
 function displayAudioPreview(blob) {
@@ -1089,7 +1142,18 @@ async function transcribeAndGenerateRecipe() {
 
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recipe-audio.webm');
-    formData.append('language', languageSelect.value);
+    
+    // Determine which language selector to use
+    let selectedLanguage = 'en-US';
+    if (recordSection.classList.contains('active')) {
+        selectedLanguage = languageSelectRecord.value;
+    } else if (uploadSection.classList.contains('active')) {
+        selectedLanguage = languageSelectUpload.value;
+    } else {
+        // Fallback
+        selectedLanguage = languageSelectRecord.value;
+    }
+    formData.append('language', selectedLanguage);
     
     const outputLanguageSelect = document.getElementById('outputLanguageSelect');
     if (outputLanguageSelect) {
