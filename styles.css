@@ -89,6 +89,7 @@ header {
     cursor: pointer;
     font-size: 1.1rem;
     padding: 0;
+    font-family: var(--font-body);
     transition: transform 0.2s;
 }
 
@@ -141,6 +142,7 @@ header {
     border-radius: 12px;
     font-size: 0.9rem;
     font-weight: 700;
+    font-family: var(--font-body);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -307,6 +309,7 @@ header {
     border-radius: 8px;
     font-size: 1rem;
     font-weight: 600;
+    font-family: var(--font-body);
     cursor: pointer;
     transition: all 0.3s ease;
     display: inline-flex;
@@ -330,6 +333,7 @@ header {
 }
 
 .btn-primary {
+    
     background: var(--primary-color);
     color: white;
 }
@@ -1079,6 +1083,7 @@ footer {
     border-radius: 25px;
     font-size: 0.95rem;
     font-weight: 600;
+    font-family: var(--font-body);
     cursor: pointer;
     transition: all 0.3s ease;
     display: inline-flex;
@@ -1510,6 +1515,7 @@ footer {
     cursor: pointer;
     padding: 0.4rem 0.6rem;
     border-radius: 0.5rem;
+    font-family: var(--font-body);
     transition: all 0.2s ease;
 }
 
@@ -1527,6 +1533,7 @@ footer {
     border-radius: 20px;
     font-size: 0.9rem;
     font-weight: 600;
+    font-family: var(--font-body);
     cursor: pointer;
     transition: all 0.3s ease;
 }
@@ -1544,6 +1551,7 @@ footer {
 }
 
 .auth-tabs {
+    font-family: var(--font-body);
     display: flex;
     gap: 10px;
     margin-bottom: 25px;
@@ -2134,6 +2142,7 @@ button:disabled:hover {
     background: white;
     border: 4px solid #ff5252;
     cursor: pointer;
+    font-family: var(--font-body);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2185,6 +2194,7 @@ button:disabled:hover {
     color: var(--text-primary);
     font-size: 1.2rem;
     cursor: pointer;
+    font-family: var(--font-body);
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
