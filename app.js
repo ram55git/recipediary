@@ -1739,16 +1739,31 @@ async function generateRecipeImageFromModal() {
                 description: originalRecipeData.description || '',
                 ingredients: originalRecipeData.ingredients || [],
                 instructions: originalRecipeData.instructions || [],
-                tips: originalRecipeData.tips || []
+                tips: originalRecipeData.tips || [],
+                author: originalRecipeData.author || '',
+                prep_time: originalRecipeData.prep_time || '',
+                cook_time: originalRecipeData.cook_time || '',
+                yield: originalRecipeData.yield || ''
             };
         } else {
             // Fallback: Extract from DOM
+            // Helper to get meta value by label text
+            const getMetaValue = (label) => {
+                const items = Array.from(modalRecipeContent.querySelectorAll('.meta-item'));
+                const item = items.find(el => el.textContent.includes(label));
+                return item ? item.querySelector('.meta-value')?.textContent : '';
+            };
+
             recipeData = {
                 title: modalRecipeContent.querySelector('.recipe-title')?.textContent || '',
                 description: modalRecipeContent.querySelector('.recipe-description')?.textContent || '',
                 ingredients: Array.from(modalRecipeContent.querySelectorAll('.ingredients-list li')).map(li => li.textContent),
                 instructions: Array.from(modalRecipeContent.querySelectorAll('.instructions-list li')).map(li => li.textContent),
-                tips: Array.from(modalRecipeContent.querySelectorAll('.tips-list li')).map(li => li.textContent)
+                tips: Array.from(modalRecipeContent.querySelectorAll('.tips-list li')).map(li => li.textContent),
+                author: modalRecipeContent.querySelector('.recipe-author')?.textContent.replace('by ', '') || '',
+                prep_time: getMetaValue('Prep Time'),
+                cook_time: getMetaValue('Cook Time'),
+                yield: getMetaValue('Servings')
             };
         }
 
