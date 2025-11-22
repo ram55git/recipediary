@@ -13,4 +13,3 @@ gunicorn
 requests
 stripe
 razorpay
-google-auth

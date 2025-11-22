@@ -1120,9 +1120,6 @@ def generate_recipe_image():
     """
     try:
         data = request.get_json()
-        if not data:
-            return jsonify({'error': 'Invalid JSON data'}), 400
-            
         recipe_data = data.get('recipe')
         
         if not recipe_data:
@@ -1131,10 +1128,12 @@ def generate_recipe_image():
         # Create a descriptive prompt from the recipe data
         title = recipe_data.get('title', 'a delicious dish')
         description = recipe_data.get('description', '')
-        # Ensure lists are lists, even if None is passed
-        ingredients = recipe_data.get('ingredients') or []
-        instructions = recipe_data.get('instructions') or []
-        
+        ingredients = recipe_data.get('ingredients', [])
+        instructions = recipe_data.get('instructions', [])
+        author = recipe_data.get('author', '')
+        cook_time = recipe_data.get('cook_time', '')
+        prep_time = recipe_data.get('prep_time', '')
+        yield_info = recipe_data.get('yield', '')
         # Build a detailed prompt for image generation
         # Request a recipe card layout with text
         ingredients_text = "\n".join([f"• {i}" for i in ingredients[:8]])
@@ -1145,6 +1144,14 @@ def generate_recipe_image():
 The image must be a high-quality digital graphic design featuring a delicious photo of the dish and the following text clearly displayed:
 
 Title: {title}
+
+Author: {author}
+
+Cook Time: {cook_time}
+
+Prep Time: {prep_time}
+
+Yield: {yield_info}
 
 Ingredients:
 {ingredients_text}
@@ -1202,17 +1209,10 @@ Design Style: Modern culinary magazine layout, elegant typography, appetizing fo
         try:
             print("Falling back to Vertex AI (Imagen 3)...")
             # Get credentials and project ID
-            try:
-                credentials, project_id = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
-                auth_req = google.auth.transport.requests.Request()
-                credentials.refresh(auth_req)
-                token = credentials.token
-            except Exception as auth_error:
-                print(f"Google Auth Error: {str(auth_error)}")
-                return jsonify({
-                    'error': 'Authentication failed. Please configure Google Cloud credentials.',
-                    'details': str(auth_error)
-                }), 500
+            credentials, project_id = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
+            auth_req = google.auth.transport.requests.Request()
+            credentials.refresh(auth_req)
+            token = credentials.token
             
             # Vertex AI Endpoint for Imagen 3 (Stable)
             url = f"https://us-central1-aiplatform.googleapis.com/v1/projects/{project_id}/locations/us-central1/publishers/google/models/imagen-3.0-generate-001:predict"
