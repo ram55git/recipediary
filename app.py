@@ -23,7 +23,7 @@ import config_credits
 import google.auth
 import google.auth.transport.requests
 from werkzeug.exceptions import HTTPException
-from google.oauth2 import service_account
+# from google.oauth2 import service_account # Moved to inside function to avoid startup errors
 
 # Load environment variables from .env file
 load_dotenv()
@@ -1236,6 +1236,8 @@ Design Style: Modern culinary magazine layout, elegant typography, appetizing fo
             
             if creds_path and os.path.exists(creds_path):
                 print(f"Loading credentials from file: {creds_path}")
+                # Import here to avoid top-level dependency issues
+                from google.oauth2 import service_account
                 credentials = service_account.Credentials.from_service_account_file(
                     creds_path,
                     scopes=['https://www.googleapis.com/auth/cloud-platform']
