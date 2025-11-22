@@ -1210,6 +1210,14 @@ Design Style: Modern culinary magazine layout, elegant typography, appetizing fo
             print("Falling back to Vertex AI (Imagen 3)...")
             # Get credentials and project ID
             credentials, project_id = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
+            
+            # Fallback for project_id if not found in credentials
+            if not project_id:
+                project_id = os.getenv('GOOGLE_CLOUD_PROJECT')
+                
+            if not project_id:
+                raise Exception("Could not determine Google Cloud Project ID. Please set GOOGLE_CLOUD_PROJECT environment variable.")
+
             auth_req = google.auth.transport.requests.Request()
             credentials.refresh(auth_req)
             token = credentials.token
@@ -1256,7 +1264,7 @@ Design Style: Modern culinary magazine layout, elegant typography, appetizing fo
             # If we get here, something failed
             print(f"Vertex AI Error: {response.status_code} - {response.text}")
             return jsonify({
-                'error': f'Image generation failed. Gemini: Check API Key. Vertex: {response.text}',
+                'error': f'Image generation failed. Gemini API Key present: {bool(GEMINI_API_KEY)}. Vertex Error: {response.text}',
                 'suggestion': 'Please ensure Vertex AI API is enabled and you have quota.'
             }), 500
                 
@@ -1264,7 +1272,7 @@ Design Style: Modern culinary magazine layout, elegant typography, appetizing fo
             print(f"Image generation error: {str(img_error)}")
             return jsonify({
                 'error': f'Image generation failed: {str(img_error)}',
-                'suggestion': 'Please ensure you have Google Cloud credentials configured correctly.'
+                'suggestion': 'Please ensure you have Google Cloud credentials configured correctly (GEMINI_API_KEY or GOOGLE_APPLICATION_CREDENTIALS).'
             }), 500
             
     except Exception as e:
