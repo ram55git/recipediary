@@ -22,6 +22,7 @@ import requests
 import config_credits
 import google.auth
 import google.auth.transport.requests
+from werkzeug.exceptions import HTTPException
 
 # Load environment variables from .env file
 load_dotenv()
@@ -56,6 +57,24 @@ else:
 
 app = Flask(__name__, static_folder='.')
 CORS(app)
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Global error handler to ensure JSON response for all exceptions"""
+    # Pass through HTTP errors
+    if isinstance(e, HTTPException):
+        return jsonify({'error': e.description}), e.code
+
+    # Handle non-HTTP exceptions
+    print(f"Unhandled Exception: {str(e)}")
+    import traceback
+    traceback.print_exc()
+    
+    return jsonify({
+        "error": "Internal Server Error",
+        "message": str(e),
+        "type": type(e).__name__
+    }), 500
 
 # Configuration
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
