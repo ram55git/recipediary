@@ -23,6 +23,7 @@ import config_credits
 import google.auth
 import google.auth.transport.requests
 from werkzeug.exceptions import HTTPException
+from google.oauth2 import service_account
 
 # Load environment variables from .env file
 load_dotenv()
@@ -1203,7 +1204,8 @@ Design Style: Modern culinary magazine layout, elegant typography, appetizing fo
                     }
                 }
                 
-                response = requests.post(url, headers=headers, json=payload)
+                # Add timeout to prevent hanging
+                response = requests.post(url, headers=headers, json=payload, timeout=30)
                 
                 if response.status_code == 200:
                     result = response.json()
@@ -1227,13 +1229,27 @@ Design Style: Modern culinary magazine layout, elegant typography, appetizing fo
         # This is used if GEMINI_API_KEY is missing or the above request fails
         try:
             print("Falling back to Vertex AI (Imagen 3)...")
-            # Get credentials and project ID
-            credentials, project_id = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
             
-            # Fallback for project_id if not found in credentials
-            if not project_id:
-                project_id = os.getenv('GOOGLE_CLOUD_PROJECT')
-                
+            # Explicitly load credentials from file if available (more robust in deployment)
+            creds_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+            project_id = os.getenv('GOOGLE_CLOUD_PROJECT')
+            
+            if creds_path and os.path.exists(creds_path):
+                print(f"Loading credentials from file: {creds_path}")
+                credentials = service_account.Credentials.from_service_account_file(
+                    creds_path,
+                    scopes=['https://www.googleapis.com/auth/cloud-platform']
+                )
+                # Try to get project_id from credentials if not set in env
+                if not project_id and hasattr(credentials, 'project_id'):
+                    project_id = credentials.project_id
+            else:
+                print("Using google.auth.default()...")
+                # Get credentials and project ID
+                credentials, auth_project_id = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
+                if not project_id:
+                    project_id = auth_project_id
+            
             if not project_id:
                 raise Exception("Could not determine Google Cloud Project ID. Please set GOOGLE_CLOUD_PROJECT environment variable.")
 
@@ -1263,7 +1279,8 @@ Design Style: Modern culinary magazine layout, elegant typography, appetizing fo
                 }
             }
             
-            response = requests.post(url, headers=headers, json=payload)
+            # Add timeout to prevent hanging
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
             
             if response.status_code == 200:
                 result = response.json()
