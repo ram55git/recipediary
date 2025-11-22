@@ -230,9 +230,14 @@
                     </select>
                 </div>
 
-                <button class="btn btn-primary btn-large" id="transcribeBtn">
-                    <span class="icon">🎙️</span> Transcribe & Generate Recipe
-                </button>
+                <div class="preview-actions" style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button class="btn btn-danger" id="discardBtn" style="flex: 1;">
+                        <span class="icon">🗑️</span> Discard
+                    </button>
+                    <button class="btn btn-primary" id="transcribeBtn" style="flex: 2;">
+                        <span class="icon">🎙️</span> Transcribe & Generate Recipe
+                    </button>
+                </div>
             </div>
 
             <!-- Loading Section -->
@@ -246,6 +251,9 @@
                 <h2>📖 Your Recipe</h2>
                 <div id="recipeContent"></div>
                 <div class="recipe-actions">
+                    <button class="btn btn-warning" id="nanoBananaBtn" title="Generate unique image of your recipe using Nano Banana">
+                        <span class="icon">🍌</span> Nano Banana
+                    </button>
                     <button class="btn btn-primary" id="saveImageBtn">
                         <span class="icon">💾</span> Save as Image
                     </button>
@@ -329,6 +337,9 @@
                     <div id="modalRecipeContent"></div>
                 </div>
                 <div class="modal-footer">
+                    <button class="btn btn-warning" id="modalNanoBananaBtn" title="Generate unique image of your recipe using Nano Banana">
+                        <span class="icon">🍌</span> Nano Banana
+                    </button>
                     <button class="btn btn-primary" id="modalSaveImageBtn">
                         <span class="icon">💾</span> Save as Image
                     </button>

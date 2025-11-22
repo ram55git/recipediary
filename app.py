@@ -20,6 +20,8 @@ import time
 from collections import defaultdict
 import requests
 import config_credits
+import google.auth
+import google.auth.transport.requests
 
 # Load environment variables from .env file
 load_dotenv()
@@ -1108,6 +1110,163 @@ def simulate_buy_credits():
     except Exception as e:
         print(f"Error buying credits: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/generate-recipe-image', methods=['POST'])
+@verify_token
+def generate_recipe_image():
+    """
+    Generate a unique recipe image using Google's Imagen 3 (Nano Banana)
+    """
+    try:
+        data = request.get_json()
+        recipe_data = data.get('recipe')
+        
+        if not recipe_data:
+            return jsonify({'error': 'No recipe data provided'}), 400
+        
+        # Create a descriptive prompt from the recipe data
+        title = recipe_data.get('title', 'a delicious dish')
+        description = recipe_data.get('description', '')
+        ingredients = recipe_data.get('ingredients', [])
+        instructions = recipe_data.get('instructions', [])
+        author = recipe_data.get('author', 'Home Chef')
+        cook_time = recipe_data.get('cook_time', '')
+        prep_time = recipe_data.get('prep_time', '')
+        yield_info = recipe_data.get('yield', '')
+        # Build a detailed prompt for image generation
+        # Request a recipe card layout with text
+        ingredients_text = "\n".join([f"• {i}" for i in ingredients[:8]])
+        instructions_text = "\n".join([f"{i+1}. {step}" for i, step in enumerate(instructions[:4])])
+        
+        prompt = f"""A beautifully designed recipe card for "{title}".
+        
+The image must be a high-quality digital graphic design featuring a delicious photo of the dish and the following text clearly displayed:
+
+Title: {title}
+
+Author: {author}
+Cook Time: {cook_time}
+Prep Time: {prep_time}
+Yield: {yield_info}
+
+Ingredients:
+{ingredients_text}
+
+Instructions:
+{instructions_text}
+
+Design Style: Modern culinary magazine layout, elegant typography, appetizing food photography background or side-by-side layout. The text must be legible and professional."""
+        
+        
+        # Option 1: Try Gemini 3 Pro Image Preview via AI Studio API (using GEMINI_API_KEY)
+        # This is the preferred method for "Preview" models as it bypasses some Vertex AI region restrictions
+        if GEMINI_API_KEY:
+            try:
+                print("Attempting generation with Gemini 3 Pro (AI Studio)...")
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key={GEMINI_API_KEY}"
+                
+                headers = {"Content-Type": "application/json"}
+                
+                payload = {
+                    "contents": [{
+                        "parts": [{"text": prompt}]
+                    }],
+                    "generationConfig": {
+                        "responseModalities": ["IMAGE"],
+                        "imageConfig": {
+                            "aspectRatio": "3:4",
+                            "imageSize": "2K"
+                        }
+                    }
+                }
+                
+                response = requests.post(url, headers=headers, json=payload)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    candidates = result.get('candidates', [])
+                    if candidates:
+                        parts = candidates[0].get('content', {}).get('parts', [])
+                        for part in parts:
+                            inline_data = part.get('inlineData') or part.get('inline_data')
+                            if inline_data:
+                                return jsonify({
+                                    'success': True,
+                                    'image': f"data:image/png;base64,{inline_data.get('data')}",
+                                    'filename': f"{title.replace(' ', '_')}_nanobanan.png"
+                                })
+                else:
+                    print(f"Gemini API Error: {response.status_code} - {response.text}")
+            except Exception as e:
+                print(f"Gemini Request Error: {str(e)}")
+
+        # Option 2: Fallback to Vertex AI REST API (Imagen 3)
+        # This is used if GEMINI_API_KEY is missing or the above request fails
+        try:
+            print("Falling back to Vertex AI (Imagen 3)...")
+            # Get credentials and project ID
+            credentials, project_id = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
+            auth_req = google.auth.transport.requests.Request()
+            credentials.refresh(auth_req)
+            token = credentials.token
+            
+            # Vertex AI Endpoint for Imagen 3 (Stable)
+            url = f"https://us-central1-aiplatform.googleapis.com/v1/projects/{project_id}/locations/us-central1/publishers/google/models/imagen-3.0-generate-001:predict"
+            
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json; charset=utf-8"
+            }
+            
+            payload = {
+                "instances": [
+                    {
+                        "prompt": prompt
+                    }
+                ],
+                "parameters": {
+                    "sampleCount": 1,
+                    "aspectRatio": "3:4",
+                    "safetyFilterLevel": "block_some",
+                    "personGeneration": "allow_adult"
+                }
+            }
+            
+            response = requests.post(url, headers=headers, json=payload)
+            
+            if response.status_code == 200:
+                result = response.json()
+                predictions = result.get('predictions', [])
+                
+                if predictions:
+                    # Imagen 3 returns base64 encoded image in 'bytesBase64Encoded'
+                    img_base64 = predictions[0].get('bytesBase64Encoded')
+                    
+                    if img_base64:
+                        return jsonify({
+                            'success': True,
+                            'image': f'data:image/png;base64,{img_base64}',
+                            'filename': f"{title.replace(' ', '_')}_nanobanan.png"
+                        })
+            
+            # If we get here, something failed
+            print(f"Vertex AI Error: {response.status_code} - {response.text}")
+            return jsonify({
+                'error': f'Image generation failed. Gemini: Check API Key. Vertex: {response.text}',
+                'suggestion': 'Please ensure Vertex AI API is enabled and you have quota.'
+            }), 500
+                
+        except Exception as img_error:
+            print(f"Image generation error: {str(img_error)}")
+            return jsonify({
+                'error': f'Image generation failed: {str(img_error)}',
+                'suggestion': 'Please ensure you have Google Cloud credentials configured correctly.'
+            }), 500
+            
+    except Exception as e:
+        print(f"Error in generate_recipe_image: {str(e)}")
+        return jsonify({'error': f'Request failed: {str(e)}'}), 500
 
 
 @app.route('/api/health', methods=['GET'])

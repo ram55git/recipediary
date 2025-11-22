@@ -790,7 +790,9 @@ const errorCard = document.getElementById('errorCard');
 const errorMessage = document.getElementById('errorMessage');
 const newRecipeBtn = document.getElementById('newRecipeBtn');
 const retryBtn = document.getElementById('retryBtn');
+const discardBtn = document.getElementById('discardBtn');
 const saveImageBtn = document.getElementById('saveImageBtn');
+const nanoBananaBtn = document.getElementById('nanoBananaBtn');
 const shareBtn = document.getElementById('shareBtn');
 // const languageSelect = document.getElementById('languageSelect'); // Removed
 const languageSelectRecord = document.getElementById('languageSelectRecord');
@@ -798,6 +800,7 @@ const languageSelectUpload = document.getElementById('languageSelectUpload');
 const recordSection = document.getElementById('recordSection');
 const uploadSection = document.getElementById('uploadSection');
 const recordingControls = document.getElementById('recordingControls'); // Secondary controls container
+const inputMethodsContainer = document.querySelector('.input-methods-container');
 
 // DOM Elements - Navigation
 const navRecord = document.getElementById('navRecord');
@@ -825,6 +828,7 @@ const modalSaveBtn = document.getElementById('modalSaveBtn');
 const modalCancelBtn = document.getElementById('modalCancelBtn');
 const modalDeleteBtn = document.getElementById('modalDeleteBtn');
 const modalSaveImageBtn = document.getElementById('modalSaveImageBtn');
+const modalNanoBananaBtn = document.getElementById('modalNanoBananaBtn');
 const modalShareBtn = document.getElementById('modalShareBtn');
 
 // Event Listeners - Recording
@@ -837,7 +841,20 @@ fileInput.addEventListener('change', handleFileUpload);
 transcribeBtn.addEventListener('click', transcribeAndGenerateRecipe);
 newRecipeBtn.addEventListener('click', resetApp);
 retryBtn.addEventListener('click', resetApp);
+if (discardBtn) {
+    discardBtn.addEventListener('click', () => {
+        audioPreviewCard.style.display = 'none';
+        inputMethodsContainer.style.display = 'flex';
+        resetRecording();
+        fileInput.value = ''; // Clear file input
+        uploadedFileName.textContent = '';
+        uploadedFileName.classList.remove('show');
+    });
+}
 saveImageBtn.addEventListener('click', () => saveRecipeAsImage());
+if (nanoBananaBtn) {
+    nanoBananaBtn.addEventListener('click', generateRecipeImage);
+}
 shareBtn.addEventListener('click', () => shareRecipeImage());
 
 // Section Toggles
@@ -874,6 +891,9 @@ modalSaveBtn.addEventListener('click', saveRecipeEdits);
 modalCancelBtn.addEventListener('click', cancelEdit);
 modalDeleteBtn.addEventListener('click', deleteCurrentRecipe);
 modalSaveImageBtn.addEventListener('click', () => saveRecipeAsImage(modalRecipeContent));
+if (modalNanoBananaBtn) {
+    modalNanoBananaBtn.addEventListener('click', () => generateRecipeImageFromModal());
+}
 modalShareBtn.addEventListener('click', () => shareRecipeImage(modalRecipeContent));
 
 // Close modal when clicking outside
@@ -1090,6 +1110,7 @@ function displayAudioPreview(blob) {
         };
         
         audioPreviewCard.style.display = 'block';
+        if (inputMethodsContainer) inputMethodsContainer.style.display = 'none';
         hideOtherCards();
     } catch (error) {
         console.error('Error creating audio preview:', error);
@@ -1118,10 +1139,7 @@ function handleFileUpload() {
         uploadedFileName.textContent = `📎 ${file.name}`;
         uploadedFileName.classList.add('show');
         
-        const url = URL.createObjectURL(file);
-        audioPreview.src = url;
-        audioPreviewCard.style.display = 'block';
-        hideOtherCards();
+        displayAudioPreview(file);
     }
 }
 
@@ -1379,6 +1397,10 @@ function resetApp() {
     updateProgress(0);
     updateUIForStopped();
     
+    // Show input methods
+    if (inputMethodsContainer) inputMethodsContainer.style.display = 'flex';
+    audioPreviewCard.style.display = 'none';
+    
     // Reset file upload
     fileInput.value = '';
     uploadedFileName.textContent = '';
@@ -1623,6 +1645,152 @@ async function shareRecipeImage(contentElement = null) {
     }
 }
 
+// ============================================================================
+// NANO BANANA - AI IMAGE GENERATION
+// ============================================================================
+
+async function generateRecipeImage() {
+    if (!authToken || !currentUser) {
+        showError('Please login to generate recipe images.');
+        openAuthModal();
+        return;
+    }
+
+    if (!recipeContent || !recipeContent.innerHTML || !recipeContent.innerHTML.trim()) {
+        showError('No recipe to generate image for. Please create a recipe first.');
+        return;
+    }
+
+    try {
+        nanoBananaBtn.disabled = true;
+        nanoBananaBtn.innerHTML = '<span class="spinner-small"></span> Generating...';
+
+        // Extract recipe data from the DOM
+        const recipeData = {
+            title: recipeContent.querySelector('.recipe-title')?.textContent || '',
+            description: recipeContent.querySelector('.recipe-description')?.textContent || '',
+            ingredients: Array.from(recipeContent.querySelectorAll('.ingredients-list li')).map(li => li.textContent),
+            instructions: Array.from(recipeContent.querySelectorAll('.instructions-list li')).map(li => li.textContent),
+            tips: Array.from(recipeContent.querySelectorAll('.tips-list li')).map(li => li.textContent)
+        };
+
+        const response = await fetch('/api/generate-recipe-image', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ recipe: recipeData })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to generate image');
+        }
+
+        if (data.success && data.image) {
+            // Create a download link for the generated image
+            const link = document.createElement('a');
+            link.download = data.filename;
+            link.href = data.image;
+            link.click();
+
+            nanoBananaBtn.innerHTML = '<span class="icon">✅</span> Image Generated!';
+            setTimeout(() => {
+                nanoBananaBtn.disabled = false;
+                nanoBananaBtn.innerHTML = '<span class="icon">🍌</span> Nano Banana';
+            }, 3000);
+        } else {
+            throw new Error('Invalid response from server');
+        }
+
+    } catch (error) {
+        console.error('Error generating recipe image:', error);
+        showError(`Failed to generate image: ${error.message}`);
+        nanoBananaBtn.disabled = false;
+        nanoBananaBtn.innerHTML = '<span class="icon">🍌</span> Nano Banana';
+    }
+}
+
+async function generateRecipeImageFromModal() {
+    if (!authToken || !currentUser) {
+        showError('Please login to generate recipe images.');
+        openAuthModal();
+        return;
+    }
+
+    if (!modalRecipeContent || !modalRecipeContent.innerHTML || !modalRecipeContent.innerHTML.trim()) {
+        showError('No recipe to generate image for.');
+        return;
+    }
+
+    try {
+        modalNanoBananaBtn.disabled = true;
+        modalNanoBananaBtn.innerHTML = '<span class="spinner-small"></span> Generating...';
+
+        // Extract recipe data
+        let recipeData;
+        
+        if (originalRecipeData) {
+            // Use the stored recipe object if available (more reliable)
+            recipeData = {
+                title: originalRecipeData.recipe_name || '',
+                description: originalRecipeData.description || '',
+                ingredients: originalRecipeData.ingredients || [],
+                instructions: originalRecipeData.instructions || [],
+                tips: originalRecipeData.tips || []
+            };
+        } else {
+            // Fallback: Extract from DOM
+            recipeData = {
+                title: modalRecipeContent.querySelector('.recipe-title')?.textContent || '',
+                description: modalRecipeContent.querySelector('.recipe-description')?.textContent || '',
+                ingredients: Array.from(modalRecipeContent.querySelectorAll('.ingredients-list li')).map(li => li.textContent),
+                instructions: Array.from(modalRecipeContent.querySelectorAll('.instructions-list li')).map(li => li.textContent),
+                tips: Array.from(modalRecipeContent.querySelectorAll('.tips-list li')).map(li => li.textContent)
+            };
+        }
+
+        const response = await fetch('/api/generate-recipe-image', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ recipe: recipeData })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to generate image');
+        }
+
+        if (data.success && data.image) {
+            // Create a download link for the generated image
+            const link = document.createElement('a');
+            link.download = data.filename;
+            link.href = data.image;
+            link.click();
+
+            modalNanoBananaBtn.innerHTML = '<span class="icon">✅</span> Image Generated!';
+            setTimeout(() => {
+                modalNanoBananaBtn.disabled = false;
+                modalNanoBananaBtn.innerHTML = '<span class="icon">🍌</span> Nano Banana';
+            }, 3000);
+        } else {
+            throw new Error('Invalid response from server');
+        }
+
+    } catch (error) {
+        console.error('Error generating recipe image:', error);
+        showError(`Failed to generate image: ${error.message}`);
+        modalNanoBananaBtn.disabled = false;
+        modalNanoBananaBtn.innerHTML = '<span class="icon">🍌</span> Nano Banana';
+    }
+}
+
 // Check browser support
 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     showError('Your browser does not support audio recording. Please use a modern browser like Chrome, Firefox, or Edge.');
@@ -1636,6 +1804,7 @@ if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
 
 function switchView(view) {
     if (view === 'record') {
+        resetApp(); // Reset state when switching to record view
         recordView.style.display = 'block';
         galleryView.style.display = 'none';
         navRecord.classList.add('active');
